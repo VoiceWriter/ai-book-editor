@@ -1,0 +1,81 @@
+name: 'AI Book Editor'
+description: 'GitHub-native AI editorial system for books'
+author: 'VoiceWriter'
+
+branding:
+  icon: 'edit-3'
+  color: 'purple'
+
+inputs:
+  anthropic-key:
+    description: 'Anthropic API key for Claude'
+    required: true
+  github-token:
+    description: 'GitHub token for API access'
+    required: true
+  mode:
+    description: 'Operation mode: process-transcription, respond-comment, review-pr, scheduled-review'
+    required: false
+    default: 'process-transcription'
+  style-guide:
+    description: 'Path to style guide file'
+    required: false
+    default: './style-guide.md'
+  issue-number:
+    description: 'Issue number to process (for issue-based modes)'
+    required: false
+  pr-number:
+    description: 'PR number to review (for PR mode)'
+    required: false
+  comment-body:
+    description: 'Comment body (for respond-comment mode)'
+    required: false
+
+outputs:
+  result:
+    description: 'Result of the operation'
+    value: ${{ steps.run.outputs.result }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      shell: bash
+      run: pip install -r ${{ github.action_path }}/requirements.txt
+
+    - name: Run AI Editor
+      id: run
+      shell: bash
+      env:
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic-key }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        MODE: ${{ inputs.mode }}
+        STYLE_GUIDE: ${{ inputs.style-guide }}
+        ISSUE_NUMBER: ${{ inputs.issue-number }}
+        PR_NUMBER: ${{ inputs.pr-number }}
+        COMMENT_BODY: ${{ inputs.comment-body }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+      run: |
+        case "$MODE" in
+          process-transcription)
+            python ${{ github.action_path }}/.github/scripts/process_transcription.py
+            ;;
+          respond-comment)
+            python ${{ github.action_path }}/.github/scripts/respond_to_comment.py
+            ;;
+          review-pr)
+            python ${{ github.action_path }}/.github/scripts/review_pr.py
+            ;;
+          scheduled-review)
+            python ${{ github.action_path }}/.github/scripts/scheduled_review.py
+            ;;
+          *)
+            echo "Unknown mode: $MODE"
+            exit 1
+            ;;
+        esac

@@ -1,0 +1,10 @@
+# AI/LLM
+anthropic>=0.39.0
+
+# GitHub API - for READING data (issues, files, comments)
+# Note: WRITING operations (PRs, comments, labels) use existing Actions
+# See: https://github.com/sdras/awesome-actions
+PyGithub>=2.1.1
+
+# Config/data handling
+pyyaml>=6.0
