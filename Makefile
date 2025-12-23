@@ -1,6 +1,6 @@
 # AI Book Editor - Development & Testing
 
-.PHONY: help install test-issue test-comment test-pr test-scheduled lint clean
+.PHONY: help install test-issue test-comment test-pr test-scheduled lint clean seed seed-labels seed-clean
 
 help:
 	@echo "AI Book Editor - Development Commands"
@@ -71,6 +71,22 @@ lint:
 	else \
 		echo "Install ruff: pip install ruff"; \
 	fi
+
+# Seed test data
+seed: check-env
+	@source .venv/bin/activate 2>/dev/null || true && \
+	set -a && source .env && set +a && \
+	python seeds/seed.py
+
+seed-labels: check-env
+	@source .venv/bin/activate 2>/dev/null || true && \
+	set -a && source .env && set +a && \
+	python seeds/seed.py --labels
+
+seed-clean: check-env
+	@source .venv/bin/activate 2>/dev/null || true && \
+	set -a && source .env && set +a && \
+	python seeds/seed.py --clean
 
 clean:
 	rm -rf output/

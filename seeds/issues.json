@@ -1,0 +1,43 @@
+{
+  "issues": [
+    {
+      "title": "Voice memo: Opening chapter ideas",
+      "labels": ["voice_transcription"],
+      "body": "Um, so I've been thinking about, you know, how to structure the opening chapter. I think we should start with a story, like a real example of someone who struggled with voice-to-text before discovering this workflow. It's important to hook the reader right away, make them feel like, okay, this person gets it, they understand my pain.\n\nThe key insight I want to convey is that the friction isn't in the technology, it's in the process. Most people try to edit as they speak, and that's where everything falls apart. You need to separate capture from editing completely.\n\nI'm also thinking we should address the skeptics early. Like, acknowledge that this sounds too simple to work. But that's the whole point - simplicity is the feature, not a bug.\n\nOh, and one more thing - I want to emphasize that this isn't about being a quote unquote writer. Anyone can do this. You just need to talk. That's it. The rest is process."
+    },
+    {
+      "title": "Voice memo: The capture phase deep dive",
+      "labels": ["voice_transcription"],
+      "body": "Okay so I want to talk about the capture phase in more detail. This is really the foundation of everything else.\n\nThe key thing people don't understand is that when you're capturing, you should never, ever try to edit. I see this mistake all the time. Someone starts recording and then they pause, they go back, they try to rephrase. No. Just keep going.\n\nThink about it like a first draft. Anne Lamott calls it the shitty first draft, right? Same principle. You're not trying to be good. You're trying to get it out.\n\nI also want to mention the tools. Voice Memos on iPhone now does automatic transcription. It's actually pretty good. Not perfect but good enough. That's another point - don't obsess over transcription accuracy. You'll clean it up later.\n\nThe mental shift is from creator to capturer. You're not creating content, you're capturing thoughts. Big difference."
+    },
+    {
+      "title": "Voice memo: Editing workflow",
+      "labels": ["voice_transcription"],
+      "body": "So after you've captured a bunch of voice memos, um, you need a system for processing them. This is where most people get stuck.\n\nMy workflow is, I dump everything into a single document first. Just raw transcripts, one after another. Then I do a first pass where I'm just removing the ums and uhs and you knows. That's it. Not fixing anything else.\n\nSecond pass is about structure. I'm looking for the main ideas and grouping them together. Sometimes a single voice memo has like three different topics mixed together. That's fine - that's how brains work. But now we separate them.\n\nThird pass is actual editing. This is where you become a writer. But here's the thing - you've got so much raw material now that editing feels different. You're sculpting, not creating from nothing.\n\nI should mention - this whole process is way faster than staring at a blank page. Like, dramatically faster. That's the whole point."
+    },
+    {
+      "title": "Voice memo: Addressing impostor syndrome",
+      "labels": ["voice_transcription"],
+      "body": "I think we need a section about impostor syndrome because I know our readers deal with this.\n\nHere's the thing about voice memos - they bypass that critic in your head. When you're typing, every word feels permanent. You're performing. But when you talk, it's just... talking. You do it all day anyway.\n\nI want to tell people: you already have ideas worth sharing. You just haven't found the right way to get them out. Voice memos are that way.\n\nThere's also something about the developer mindset here. Developers are used to shipping ugly code and iterating. We understand that version one doesn't need to be perfect. Apply that same thinking to writing.\n\nActually that's a really good frame - treat your book like software. MVP first. Ship early. Iterate based on feedback. Maybe that's a whole chapter?"
+    },
+    {
+      "title": "[AI Question] What's the target word count per chapter?",
+      "labels": ["ai-question", "awaiting-author"],
+      "body": "## Question from AI Editor\n\nI noticed the chapters vary quite a bit in length. What's your target word count per chapter? This helps me know when content is \"complete\" versus needs expansion.\n\n---\n\n**Why I'm asking:** Consistent chapter length improves reader experience and helps with pacing. Some chapters might benefit from expansion while others could be tightened.\n\n**How to respond:** Just reply with your preference - e.g., \"2000-3000 words\" or \"flexible based on content.\""
+    }
+  ],
+  "labels": [
+    {"name": "voice_transcription", "color": "1D76DB", "description": "Voice memo to process"},
+    {"name": "ai-reviewed", "color": "0E8A16", "description": "AI has analyzed"},
+    {"name": "pr-created", "color": "5319E7", "description": "PR exists for this issue"},
+    {"name": "awaiting-author", "color": "FBCA04", "description": "Blocked on author input"},
+    {"name": "ai-question", "color": "F9D0C4", "description": "AI question for author"},
+    {"name": "ai-suggestion", "color": "D4C5F9", "description": "AI-initiated suggestion"},
+    {"name": "knowledge-extracted", "color": "C2E0C6", "description": "Answer stored in KB"},
+    {"name": "chapter", "color": "BFD4F2", "description": "Chapter tracking"},
+    {"name": "structural", "color": "D93F0B", "description": "Structure issue"},
+    {"name": "voice-memo", "color": "0366D6", "description": "From voice memo"},
+    {"name": "ai-generated", "color": "6F42C1", "description": "AI generated content"},
+    {"name": "ai-learning", "color": "FBCA04", "description": "AI self-improvement"}
+  ]
+}
