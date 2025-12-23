@@ -1,0 +1,20 @@
+{
+  "action": "closed",
+  "issue": {
+    "number": 5,
+    "title": "[AI Question] What is the target audience's technical level?",
+    "body": "## Question from AI Editor\n\nWhat level of technical expertise should I assume for the target reader? Are they complete beginners, intermediate users, or experienced professionals?\n\n---\n\n**Why I'm asking:** This affects how I explain technical concepts and what terminology I use.",
+    "state": "closed",
+    "user": {
+      "login": "github-actions[bot]"
+    },
+    "labels": [{"name": "ai-question"}, {"name": "awaiting-author"}]
+  },
+  "repository": {
+    "full_name": "VoiceWriter/ai-book-editor-test",
+    "name": "ai-book-editor-test",
+    "owner": {
+      "login": "VoiceWriter"
+    }
+  }
+}

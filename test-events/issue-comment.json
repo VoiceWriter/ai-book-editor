@@ -1,0 +1,27 @@
+{
+  "action": "created",
+  "issue": {
+    "number": 1,
+    "title": "Voice memo: Testing the workflow",
+    "body": "Um, so I've been thinking about how to structure the opening chapter...",
+    "state": "open",
+    "user": {
+      "login": "testuser"
+    },
+    "labels": [{"name": "voice_transcription"}, {"name": "ai-reviewed"}]
+  },
+  "comment": {
+    "id": 1,
+    "body": "@ai-editor create PR",
+    "user": {
+      "login": "testuser"
+    }
+  },
+  "repository": {
+    "full_name": "VoiceWriter/ai-book-editor-test",
+    "name": "ai-book-editor-test",
+    "owner": {
+      "login": "VoiceWriter"
+    }
+  }
+}

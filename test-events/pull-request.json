@@ -1,0 +1,27 @@
+{
+  "action": "opened",
+  "pull_request": {
+    "number": 1,
+    "title": "Add opening chapter content",
+    "body": "Adding the first draft of chapter 1 based on voice memos.",
+    "state": "open",
+    "user": {
+      "login": "testuser"
+    },
+    "head": {
+      "ref": "feature/chapter-1",
+      "sha": "abc123"
+    },
+    "base": {
+      "ref": "main",
+      "sha": "def456"
+    }
+  },
+  "repository": {
+    "full_name": "VoiceWriter/ai-book-editor-test",
+    "name": "ai-book-editor-test",
+    "owner": {
+      "login": "VoiceWriter"
+    }
+  }
+}

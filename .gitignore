@@ -44,6 +44,7 @@ output/
 .DS_Store
 Thumbs.db
 
-# Testing
-.act
-.actrc
+# Testing - act local runner
+.secrets
+
+# Keep .actrc in repo (config), but not secrets

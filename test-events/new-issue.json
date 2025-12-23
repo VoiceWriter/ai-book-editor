@@ -1,0 +1,20 @@
+{
+  "action": "opened",
+  "issue": {
+    "number": 1,
+    "title": "Voice memo: Testing the workflow",
+    "body": "Um, so I've been thinking about, you know, how to structure the opening chapter. I think we should start with a story, like a real example of someone who struggled with voice-to-text before discovering this workflow. It's important to hook the reader right away, make them feel like, okay, this person gets it, they understand my pain.\n\nThe key insight I want to convey is that the friction isn't in the technology, it's in the process. Most people try to edit as they speak, and that's where everything falls apart. You need to separate capture from editing completely.\n\nI'm also thinking we should address the skeptics early. Like, acknowledge that this sounds too simple to work. But that's the whole point - simplicity is the feature, not a bug.",
+    "state": "open",
+    "user": {
+      "login": "testuser"
+    },
+    "labels": [{"name": "voice_transcription"}]
+  },
+  "repository": {
+    "full_name": "VoiceWriter/ai-book-editor-test",
+    "name": "ai-book-editor-test",
+    "owner": {
+      "login": "VoiceWriter"
+    }
+  }
+}
