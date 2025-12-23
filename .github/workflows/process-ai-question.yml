@@ -1,0 +1,48 @@
+name: Process AI Question
+
+on:
+  issues:
+    types: [closed]
+
+jobs:
+  extract:
+    # Only process closed issues with ai-question label
+    if: |
+      contains(github.event.issue.labels.*.name, 'ai-question') &&
+      !contains(github.event.issue.labels.*.name, 'knowledge-extracted')
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout book repository
+        uses: actions/checkout@v4
+
+      - name: Checkout AI Book Editor action
+        uses: actions/checkout@v4
+        with:
+          repository: VoiceWriter/ai-book-editor
+          path: .ai-book-editor
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('.ai-book-editor/requirements.txt') }}
+
+      - name: Install dependencies
+        run: pip install -r .ai-book-editor/requirements.txt
+
+      - name: Extract knowledge
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          cd .ai-book-editor
+          python .github/scripts/extract_knowledge.py

@@ -1,0 +1,43 @@
+name: Weekly Editorial Review
+
+on:
+  schedule:
+    - cron: '0 9 * * 1'  # Every Monday at 9am UTC
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout book repository
+        uses: actions/checkout@v4
+
+      - name: Checkout AI Book Editor action
+        uses: actions/checkout@v4
+        with:
+          repository: VoiceWriter/ai-book-editor
+          path: .ai-book-editor
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('.ai-book-editor/requirements.txt') }}
+
+      - name: Install dependencies
+        run: pip install -r .ai-book-editor/requirements.txt
+
+      - name: Run scheduled review
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          cd .ai-book-editor
+          python .github/scripts/scheduled_review.py
