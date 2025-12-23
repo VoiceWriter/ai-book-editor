@@ -10,10 +10,10 @@ Usage:
     python seeds/seed.py --repo owner/repo  # Use different repo
 """
 
+import argparse
+import json
 import os
 import sys
-import json
-import argparse
 from pathlib import Path
 
 # Add parent for imports if running directly
@@ -35,7 +35,7 @@ def load_seeds() -> dict:
 
 def get_github_client() -> Github:
     """Get authenticated GitHub client."""
-    token = os.environ.get('GITHUB_TOKEN')
+    token = os.environ.get("GITHUB_TOKEN")
     if not token:
         print("Error: GITHUB_TOKEN not set")
         print("Run: export GITHUB_TOKEN=ghp_...")
@@ -45,19 +45,17 @@ def get_github_client() -> Github:
 
 def seed_labels(repo, labels: list, verbose: bool = True):
     """Create labels in repository."""
-    existing = {l.name for l in repo.get_labels()}
+    existing = {lbl.name for lbl in repo.get_labels()}
 
     for label in labels:
-        if label['name'] in existing:
+        if label["name"] in existing:
             if verbose:
                 print(f"  Label exists: {label['name']}")
             continue
 
         try:
             repo.create_label(
-                name=label['name'],
-                color=label['color'],
-                description=label.get('description', '')
+                name=label["name"], color=label["color"], description=label.get("description", "")
             )
             if verbose:
                 print(f"  Created label: {label['name']}")
@@ -73,16 +71,14 @@ def seed_issues(repo, issues: list, verbose: bool = True):
         try:
             # Get label objects
             labels = []
-            for label_name in issue_data.get('labels', []):
+            for label_name in issue_data.get("labels", []):
                 try:
                     labels.append(repo.get_label(label_name))
-                except:
+                except Exception:
                     pass  # Label doesn't exist, skip
 
             issue = repo.create_issue(
-                title=issue_data['title'],
-                body=issue_data['body'],
-                labels=labels
+                title=issue_data["title"], body=issue_data["body"], labels=labels
             )
             created.append(issue)
             if verbose:
@@ -96,9 +92,9 @@ def seed_issues(repo, issues: list, verbose: bool = True):
 def clean_test_issues(repo, verbose: bool = True):
     """Close all test issues (those starting with 'Voice memo:' or '[AI')."""
     closed = 0
-    for issue in repo.get_issues(state='open'):
-        if issue.title.startswith('Voice memo:') or issue.title.startswith('[AI'):
-            issue.edit(state='closed')
+    for issue in repo.get_issues(state="open"):
+        if issue.title.startswith("Voice memo:") or issue.title.startswith("[AI"):
+            issue.edit(state="closed")
             closed += 1
             if verbose:
                 print(f"  Closed issue #{issue.number}: {issue.title}")
@@ -108,13 +104,14 @@ def clean_test_issues(repo, verbose: bool = True):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Seed test data')
-    parser.add_argument('--repo', default='VoiceWriter/ai-book-editor-test',
-                        help='Target repository (owner/repo)')
-    parser.add_argument('--issues', action='store_true', help='Seed only issues')
-    parser.add_argument('--labels', action='store_true', help='Seed only labels')
-    parser.add_argument('--clean', action='store_true', help='Clean test issues')
-    parser.add_argument('--quiet', action='store_true', help='Suppress output')
+    parser = argparse.ArgumentParser(description="Seed test data")
+    parser.add_argument(
+        "--repo", default="VoiceWriter/ai-book-editor-test", help="Target repository (owner/repo)"
+    )
+    parser.add_argument("--issues", action="store_true", help="Seed only issues")
+    parser.add_argument("--labels", action="store_true", help="Seed only labels")
+    parser.add_argument("--clean", action="store_true", help="Clean test issues")
+    parser.add_argument("--quiet", action="store_true", help="Suppress output")
     args = parser.parse_args()
 
     verbose = not args.quiet
@@ -140,16 +137,16 @@ def main():
     if do_labels:
         if verbose:
             print("Seeding labels...")
-        seed_labels(repo, seeds['labels'], verbose)
+        seed_labels(repo, seeds["labels"], verbose)
 
     if do_issues:
         if verbose:
             print("Seeding issues...")
-        seed_issues(repo, seeds['issues'], verbose)
+        seed_issues(repo, seeds["issues"], verbose)
 
     if verbose:
         print("Done!")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -1,5 +1,7 @@
-# AI/LLM
-anthropic>=0.39.0
+# AI/LLM - LiteLLM for unified multi-provider access
+# Supports: Anthropic, OpenAI, Google, and 100+ more
+# https://docs.litellm.ai/docs/providers
+litellm>=1.52.0
 
 # GitHub API - for READING data (issues, files, comments)
 # Note: WRITING operations (PRs, comments, labels) use existing Actions
@@ -8,3 +10,7 @@ PyGithub>=2.1.1
 
 # Config/data handling
 pyyaml>=6.0
+
+# Testing
+pytest>=8.0.0
+pytest-mock>=3.12.0

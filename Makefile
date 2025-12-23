@@ -9,14 +9,24 @@ help:
 	@echo "  make install        Install Python dependencies"
 	@echo "  make setup-act      Install act for local GitHub Actions testing"
 	@echo ""
-	@echo "Local Testing (requires .env file with secrets):"
+	@echo "Unit Tests (pytest):"
+	@echo "  make test           Run all unit tests"
+	@echo "  make test-fast      Run tests, stop on first failure"
+	@echo "  make test-cov       Run tests with coverage report"
+	@echo ""
+	@echo "Integration Tests (requires .env):"
+	@echo "  make test-local     Run process_transcription.py directly"
+	@echo ""
+	@echo "GitHub Actions Simulation (requires act + .env):"
 	@echo "  make test-issue     Simulate new voice transcription issue"
 	@echo "  make test-comment   Simulate @ai-editor comment"
 	@echo "  make test-pr        Simulate PR opened event"
 	@echo "  make test-scheduled Run scheduled review locally"
 	@echo ""
-	@echo "Direct Script Testing (faster, no Docker):"
-	@echo "  make test-local     Run process_transcription.py directly"
+	@echo "Seed Data:"
+	@echo "  make seed           Create test issues/labels in test repo"
+	@echo "  make seed-labels    Create only labels"
+	@echo "  make seed-clean     Close all test issues"
 	@echo ""
 	@echo "Code Quality:"
 	@echo "  make lint           Run Python linter"
@@ -64,6 +74,16 @@ test-scheduled: check-env
 test-local: check-env
 	@set -a && source .env && set +a && \
 	ISSUE_NUMBER=1 python .github/scripts/process_transcription.py
+
+# Unit tests with pytest
+test:
+	pytest tests/ -v
+
+test-cov:
+	pytest tests/ -v --cov=.github/scripts --cov-report=term-missing
+
+test-fast:
+	pytest tests/ -v -x --tb=short
 
 lint:
 	@if command -v ruff >/dev/null 2>&1; then \
