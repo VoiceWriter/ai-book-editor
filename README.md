@@ -190,11 +190,11 @@ make test-cov
 make test-fast
 
 # Run specific test file
-pytest tests/test_claude_client.py -v
+pytest tests/test_llm_client.py -v
 ```
 
 **What's tested:**
-- `test_claude_client.py` - LLM utilities, prompt building
+- `test_llm_client.py` - LLM utilities, prompt building
 - `test_github_client.py` - GitHub API utilities
 - `test_knowledge_base.py` - Knowledge base loading/formatting
 - `test_process_transcription.py` - Main processing script
@@ -276,7 +276,7 @@ ai-book-editor/
 │   │   ├── scheduled_review.py
 │   │   ├── learn_from_feedback.py
 │   │   └── utils/
-│   │       ├── claude_client.py    # LLM utilities
+│   │       ├── llm_client.py       # LLM utilities (LiteLLM)
 │   │       ├── github_client.py    # GitHub API utilities
 │   │       └── knowledge_base.py   # Knowledge base utilities
 │   └── workflows/         # GitHub Actions workflows
