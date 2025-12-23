@@ -11,9 +11,17 @@ jobs:
     runs-on: ubuntu-latest
 
     # Don't review PRs created by the bot itself
-    if: github.actor != 'github-actions[bot]'
+    if: github.actor != 'ai-book-editor[bot]'
 
     steps:
+      # Generate GitHub App token for bot identity
+      - name: Generate App Token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.AI_EDITOR_APP_ID }}
+          private-key: ${{ secrets.AI_EDITOR_PRIVATE_KEY }}
+
       - name: Checkout book repository
         uses: actions/checkout@v4
         with:
@@ -42,7 +50,7 @@ jobs:
       - name: Run AI Editorial Review
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: |

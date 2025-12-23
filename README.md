@@ -21,12 +21,36 @@ Copy these files to your book repository:
 - `EDITORIAL_GUIDELINES.md` - Editorial rules
 - `GLOSSARY.md` - Terminology
 
-### 2. Add secrets
+### 2. Create a GitHub App (for bot identity)
 
-In your repository settings, add:
+All AI actions will appear as `ai-book-editor[bot]` instead of your personal account.
+
+1. Go to **Settings → Developer settings → GitHub Apps → New GitHub App**
+2. Fill in:
+   - **Name:** `ai-book-editor` (or your preferred name)
+   - **Homepage URL:** Your repository URL
+   - **Callback URL:** `https://example.com` (not used)
+   - **Webhook:** Uncheck "Active" (not used)
+3. **Permissions:**
+   - **Repository permissions:**
+     - Contents: Read & write
+     - Issues: Read & write
+     - Pull requests: Read & write
+     - Metadata: Read-only
+4. **Subscribe to events:** Leave all unchecked (GitHub Actions handles events)
+5. Click **Create GitHub App**
+6. Note the **App ID** from the app settings page
+7. Scroll down and click **Generate a private key** - save the `.pem` file
+8. Go to **Install App** (left sidebar) and install it on your book repository
+
+### 3. Add secrets
+
+In your repository settings (Settings → Secrets and variables → Actions), add:
+- `AI_EDITOR_APP_ID` - The App ID from step 6 above
+- `AI_EDITOR_PRIVATE_KEY` - Contents of the `.pem` file from step 7
 - `ANTHROPIC_API_KEY` - Your Claude API key (or appropriate key for your model)
 
-### 3. Create issue labels
+### 4. Create issue labels
 
 Create these labels in your repository:
 - `voice_transcription` (blue) - Voice memo to process
@@ -34,14 +58,14 @@ Create these labels in your repository:
 - `pr-created` (purple) - PR exists for this issue
 - `awaiting-author` (yellow) - Blocked on author input
 
-### 4. Submit a voice memo
+### 5. Submit a voice memo
 
 1. Create a new issue using the "Voice Transcription" template
 2. Paste your transcript in the issue body
 3. Add the `voice_transcription` label
 4. The AI will analyze and comment within minutes
 
-### 5. Interact with the AI
+### 6. Interact with the AI
 
 Use these commands in issue comments:
 - `@ai-editor create PR` - Create a PR with the cleaned content

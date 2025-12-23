@@ -10,6 +10,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # Generate GitHub App token for bot identity
+      - name: Generate App Token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.AI_EDITOR_APP_ID }}
+          private-key: ${{ secrets.AI_EDITOR_PRIVATE_KEY }}
+
       - name: Checkout book repository
         uses: actions/checkout@v4
         with:
@@ -40,7 +48,7 @@ jobs:
         id: learn
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
           cd .ai-book-editor
@@ -58,7 +66,7 @@ jobs:
         if: steps.learn.outputs.has_suggestions == 'true'
         uses: peter-evans/create-pull-request@v6
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ steps.app-token.outputs.token }}
           commit-message: "chore: AI learning - suggested guideline updates"
           branch: ai-learning/${{ github.run_id }}
           delete-branch: true
