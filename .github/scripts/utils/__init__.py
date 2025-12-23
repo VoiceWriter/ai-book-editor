@@ -1,4 +1,4 @@
 # AI Book Editor Utilities
-from .github_client import get_github_client, get_repo, get_issue
-from .claude_client import get_claude_client, call_claude
-from .knowledge_base import load_knowledge_base, load_editorial_context
+from .github_client import get_github_client, get_issue, get_repo  # noqa: F401
+from .knowledge_base import load_editorial_context, load_knowledge_base  # noqa: F401
+from .llm_client import LLMResponse, call_editorial, call_llm  # noqa: F401
