@@ -9,11 +9,14 @@ help:
 	@echo "  make install        Install Python dependencies"
 	@echo "  make setup-act      Install act for local GitHub Actions testing"
 	@echo ""
-	@echo "Local Testing (requires .secrets file):"
+	@echo "Local Testing (requires .env file with secrets):"
 	@echo "  make test-issue     Simulate new voice transcription issue"
 	@echo "  make test-comment   Simulate @ai-editor comment"
 	@echo "  make test-pr        Simulate PR opened event"
 	@echo "  make test-scheduled Run scheduled review locally"
+	@echo ""
+	@echo "Direct Script Testing (faster, no Docker):"
+	@echo "  make test-local     Run process_transcription.py directly"
 	@echo ""
 	@echo "Code Quality:"
 	@echo "  make lint           Run Python linter"
@@ -30,32 +33,37 @@ setup-act:
 		curl -s https://raw.githubusercontent.com/nektos/act/master/install.sh | sudo bash; \
 	fi
 	@echo ""
-	@echo "Create .secrets file from .secrets.example:"
-	@echo "  cp .secrets.example .secrets"
-	@echo "  # Edit .secrets with your API keys"
+	@echo "Now edit .env with your API keys:"
+	@echo "  ANTHROPIC_API_KEY=sk-ant-..."
+	@echo "  GITHUB_TOKEN=ghp_..."
 
-test-issue:
-	@if [ ! -f .secrets ]; then echo "Error: .secrets file not found. Run: cp .secrets.example .secrets"; exit 1; fi
+# Check for .env file
+check-env:
+	@if [ ! -f .env ]; then \
+		echo "Error: .env file not found."; \
+		echo "Add your keys to .env:"; \
+		echo "  ANTHROPIC_API_KEY=sk-ant-..."; \
+		echo "  GITHUB_TOKEN=ghp_..."; \
+		exit 1; \
+	fi
+
+# Local testing with act (runs in Docker, simulates GitHub Actions)
+test-issue: check-env
 	act issues -e test-events/new-issue.json -W .github/workflows/process-transcription.yml
 
-test-comment:
-	@if [ ! -f .secrets ]; then echo "Error: .secrets file not found"; exit 1; fi
+test-comment: check-env
 	act issue_comment -e test-events/issue-comment.json -W .github/workflows/respond-to-feedback.yml
 
-test-pr:
-	@if [ ! -f .secrets ]; then echo "Error: .secrets file not found"; exit 1; fi
+test-pr: check-env
 	act pull_request -e test-events/pull-request.json -W .github/workflows/review-pr.yml
 
-test-scheduled:
-	@if [ ! -f .secrets ]; then echo "Error: .secrets file not found"; exit 1; fi
+test-scheduled: check-env
 	act workflow_dispatch -W .github/workflows/scheduled-review.yml
 
-# Run Python script directly for faster iteration
-test-process-local:
-	@if [ -z "$$ANTHROPIC_API_KEY" ]; then echo "Error: ANTHROPIC_API_KEY not set"; exit 1; fi
-	@if [ -z "$$GITHUB_TOKEN" ]; then echo "Error: GITHUB_TOKEN not set"; exit 1; fi
-	ISSUE_NUMBER=1 GITHUB_REPOSITORY=VoiceWriter/ai-book-editor-test \
-		python .github/scripts/process_transcription.py
+# Run Python script directly (faster iteration, no Docker)
+test-local: check-env
+	@set -a && source .env && set +a && \
+	ISSUE_NUMBER=1 python .github/scripts/process_transcription.py
 
 lint:
 	@if command -v ruff >/dev/null 2>&1; then \

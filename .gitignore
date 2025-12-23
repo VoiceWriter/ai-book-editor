@@ -33,9 +33,10 @@ env/
 *.swo
 *~
 
-# Environment variables
+# Environment variables (NEVER commit these!)
 .env
 .env.local
+.env.*.local
 
 # Output directory (generated files)
 output/
