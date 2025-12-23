@@ -9,18 +9,21 @@ When an issue with 'ai-question' label is closed:
 4. Append to .ai-context/knowledge.jsonl
 """
 
+import json
 import os
 import sys
-import json
 from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from scripts.utils.github_client import (
-    get_github_client, get_repo, get_issue,
-    get_issue_comments, read_file_content
+from scripts.utils.github_client import (  # noqa: E402
+    get_github_client,
+    get_issue,
+    get_issue_comments,
+    get_repo,
+    read_file_content,
 )
-from scripts.utils.claude_client import call_claude
+from scripts.utils.llm_client import call_llm  # noqa: E402
 
 
 def extract_question_from_body(body: str) -> str:
@@ -40,13 +43,13 @@ def get_author_responses(comments: list) -> list:
     """Get comments from the author (not the bot)."""
     author_comments = []
     for c in comments:
-        if c['user'] != 'github-actions[bot]':
-            author_comments.append(c['body'])
+        if c["user"] != "github-actions[bot]":
+            author_comments.append(c["body"])
     return author_comments
 
 
 def main():
-    issue_number = int(os.environ.get('ISSUE_NUMBER', 0))
+    issue_number = int(os.environ.get("ISSUE_NUMBER", 0))
     if not issue_number:
         print("ERROR: ISSUE_NUMBER not set")
         sys.exit(1)
@@ -81,7 +84,8 @@ Provide a concise, factual summary of the answer that can be used as context for
 
 Keep the summary under 200 words. Just provide the summary, no preamble."""
 
-    extracted_answer = call_claude(prompt, max_tokens=500)
+    response = call_llm(prompt, max_tokens=500)
+    extracted_answer = response.content
 
     # Create knowledge entry
     entry = {
@@ -90,29 +94,26 @@ Keep the summary under 200 words. Just provide the summary, no preamble."""
         "answer": extracted_answer.strip(),
         "source_issue": issue_number,
         "extracted_at": datetime.utcnow().isoformat() + "Z",
-        "confidence": "explicit"
+        "confidence": "explicit",
     }
 
     # Append to knowledge.jsonl
-    kb_path = '.ai-context/knowledge.jsonl'
+    kb_path = ".ai-context/knowledge.jsonl"
     try:
         existing = read_file_content(repo, kb_path) or ""
-        new_content = existing.rstrip() + "\n" + json.dumps(entry) if existing.strip() else json.dumps(entry)
+        new_content = (
+            existing.rstrip() + "\n" + json.dumps(entry) if existing.strip() else json.dumps(entry)
+        )
 
         # Use GitHub API to update file
         try:
             file = repo.get_contents(kb_path)
             repo.update_file(
-                kb_path,
-                f"Add knowledge from issue #{issue_number}",
-                new_content,
-                file.sha
+                kb_path, f"Add knowledge from issue #{issue_number}", new_content, file.sha
             )
         except Exception:
             repo.create_file(
-                kb_path,
-                f"Initialize knowledge base with issue #{issue_number}",
-                json.dumps(entry)
+                kb_path, f"Initialize knowledge base with issue #{issue_number}", json.dumps(entry)
             )
     except Exception as e:
         print(f"Error updating knowledge base: {e}")
@@ -120,12 +121,12 @@ Keep the summary under 200 words. Just provide the summary, no preamble."""
 
     # Add label to indicate extraction complete
     try:
-        issue.add_to_labels('knowledge-extracted')
+        issue.add_to_labels("knowledge-extracted")
     except Exception:
         pass
 
     print(f"Extracted knowledge from issue #{issue_number}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

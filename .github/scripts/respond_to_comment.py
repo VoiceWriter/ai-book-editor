@@ -17,26 +17,29 @@ OUTPUTS:
 """
 
 import os
-import sys
 import re
+import sys
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from scripts.utils.github_client import (
-    get_github_client, get_repo, get_issue, get_issue_comments
+from scripts.utils.github_client import (  # noqa: E402
+    get_github_client,
+    get_issue,
+    get_issue_comments,
+    get_repo,
 )
-from scripts.utils.claude_client import call_claude
-from scripts.utils.knowledge_base import load_editorial_context
+from scripts.utils.llm_client import call_editorial  # noqa: E402
 
 
 def set_output(name: str, value: str):
     """Set a step output for the GitHub Actions workflow."""
-    output_file = os.environ.get('GITHUB_OUTPUT')
+    output_file = os.environ.get("GITHUB_OUTPUT")
     if output_file:
-        with open(output_file, 'a') as f:
-            if '\n' in value:
+        with open(output_file, "a") as f:
+            if "\n" in value:
                 import uuid
+
                 delimiter = uuid.uuid4().hex
                 f.write(f"{name}<<{delimiter}\n{value}\n{delimiter}\n")
             else:
@@ -46,13 +49,9 @@ def set_output(name: str, value: str):
 def extract_cleaned_transcript(comments: list) -> str:
     """Extract the cleaned transcript from AI's previous analysis."""
     for comment in reversed(comments):
-        body = comment.get('body', '')
-        if '### Cleaned Transcript' in body:
-            match = re.search(
-                r'### Cleaned Transcript\s*\n(.*?)(?=###|\n---|\Z)',
-                body,
-                re.DOTALL
-            )
+        body = comment.get("body", "")
+        if "### Cleaned Transcript" in body:
+            match = re.search(r"### Cleaned Transcript\s*\n(.*?)(?=###|\n---|\Z)", body, re.DOTALL)
             if match:
                 return match.group(1).strip()
     return None
@@ -61,19 +60,19 @@ def extract_cleaned_transcript(comments: list) -> str:
 def extract_target_file(comments: list, issue_number: int) -> str:
     """Determine target file from comments or default."""
     for comment in reversed(comments):
-        body = comment.get('body', '')
-        match = re.search(r'place in (\S+\.md)', body.lower())
+        body = comment.get("body", "")
+        match = re.search(r"place in (\S+\.md)", body.lower())
         if match:
             filename = match.group(1)
-            if '/' not in filename:
+            if "/" not in filename:
                 return filename
-            return filename.split('/')[-1]
+            return filename.split("/")[-1]
     return f"voice-memo-{issue_number}.md"
 
 
 def main():
-    issue_number = int(os.environ.get('ISSUE_NUMBER', 0))
-    comment_body = os.environ.get('COMMENT_BODY', '')
+    issue_number = int(os.environ.get("ISSUE_NUMBER", 0))
+    comment_body = os.environ.get("COMMENT_BODY", "")
 
     if not issue_number:
         print("ERROR: ISSUE_NUMBER not set")
@@ -85,29 +84,31 @@ def main():
     comments = get_issue_comments(issue)
 
     # Ensure output directory exists
-    Path('output').mkdir(exist_ok=True)
+    Path("output").mkdir(exist_ok=True)
 
     # Normalize command
     comment_lower = comment_body.lower()
 
     # === Handle @ai-editor create PR ===
-    if '@ai-editor create pr' in comment_lower:
+    if "@ai-editor create pr" in comment_lower:
         print("Preparing PR creation...")
 
         # Get cleaned content
         cleaned_content = extract_cleaned_transcript(comments)
         if not cleaned_content:
             cleaned_content = issue.body  # Fallback to original
-            set_output('response_comment',
+            set_output(
+                "response_comment",
                 "Couldn't find my cleaned transcript. Using original content. "
-                "You may want to edit the PR after it's created.")
+                "You may want to edit the PR after it's created.",
+            )
 
         # Determine target file
         target_filename = extract_target_file(comments, issue_number)
         target_path = f"chapters/{target_filename}"
 
         # Write cleaned content to file for workflow
-        Path('output/cleaned-content.md').write_text(cleaned_content)
+        Path("output/cleaned-content.md").write_text(cleaned_content)
 
         # Also write it to the actual target path (workflow will commit)
         Path(target_path).parent.mkdir(parents=True, exist_ok=True)
@@ -120,9 +121,9 @@ def main():
             Path(target_path).write_text(cleaned_content)
 
         # Set outputs for workflow
-        set_output('create_pr', 'true')
-        set_output('target_file', target_path)
-        set_output('scope', target_filename.replace('.md', ''))
+        set_output("create_pr", "true")
+        set_output("target_file", target_path)
+        set_output("scope", target_filename.replace(".md", ""))
 
         pr_body = f"""### Content Preview
 
@@ -137,35 +138,36 @@ def main():
 - [ ] No redundancy with other sections
 - [ ] Voice is consistent"""
 
-        set_output('pr_body', pr_body)
+        set_output("pr_body", pr_body)
 
         # Response comment
-        set_output('response_comment',
-            f"Creating PR to add content to `{target_path}`...")
+        set_output("response_comment", f"Creating PR to add content to `{target_path}`...")
 
         print(f"PR creation prepared for {target_path}")
         return
 
     # === Handle @ai-editor place in [file] ===
-    if '@ai-editor place in' in comment_lower:
-        match = re.search(r'place in (\S+\.md)', comment_lower)
+    if "@ai-editor place in" in comment_lower:
+        match = re.search(r"place in (\S+\.md)", comment_lower)
         if match:
             filename = match.group(1)
-            set_output('create_pr', 'false')
-            set_output('response_comment',
+            set_output("create_pr", "false")
+            set_output(
+                "response_comment",
                 f"Got it! I'll target `chapters/{filename}` when creating the PR.\n\n"
-                f"When you're ready, just say `@ai-editor create PR`.")
+                f"When you're ready, just say `@ai-editor create PR`.",
+            )
             print(f"Target file set to {filename}")
             return
 
     # === Handle general @ai-editor mention ===
-    if '@ai-editor' in comment_lower:
+    if "@ai-editor" in comment_lower:
         print("Generating conversational response...")
 
         # Build conversation history
         history = f"**Original transcript:**\n{issue.body}\n\n"
         for c in comments:
-            role = "Author" if c['user'] != 'github-actions[bot]' else "AI Editor"
+            role = "Author" if c["user"] != "github-actions[bot]" else "AI Editor"
             history += f"**{role}:**\n{c['body'][:500]}\n\n"
 
         prompt = f"""You are an editorial assistant having a conversation about integrating a voice memo into a book.
@@ -183,18 +185,23 @@ Respond helpfully and concisely. If they've:
 
 Keep responses brief and focused. You're a collaborator, not a lecturer."""
 
-        response = call_claude(prompt, max_tokens=1024)
+        llm_response = call_editorial(prompt, max_tokens=2000)
+        print(f"LLM call complete: {llm_response.usage.format_compact()}")
 
-        set_output('create_pr', 'false')
-        set_output('response_comment', response)
+        # Add reasoning and usage info to response
+        reasoning_section = llm_response.format_editorial_explanation()
+        response_with_info = f"{llm_response.content}\n\n{reasoning_section}\n\n<sub>{llm_response.usage.format_summary()}</sub>"
+
+        set_output("create_pr", "false")
+        set_output("response_comment", response_with_info)
         print("Conversational response generated")
         return
 
     # No @ai-editor mention found
-    set_output('create_pr', 'false')
-    set_output('response_comment', '')
+    set_output("create_pr", "false")
+    set_output("response_comment", "")
     print("No @ai-editor command found, skipping.")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
