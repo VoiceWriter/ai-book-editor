@@ -1,0 +1,50 @@
+name: AI Editorial Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    paths:
+      - 'chapters/**'
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+
+    # Don't review PRs created by the bot itself
+    if: github.actor != 'github-actions[bot]'
+
+    steps:
+      - name: Checkout book repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Need full history for diff
+
+      - name: Checkout AI Book Editor action
+        uses: actions/checkout@v4
+        with:
+          repository: VoiceWriter/ai-book-editor
+          path: .ai-book-editor
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('.ai-book-editor/requirements.txt') }}
+
+      - name: Install dependencies
+        run: pip install -r .ai-book-editor/requirements.txt
+
+      - name: Run AI Editorial Review
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          cd .ai-book-editor
+          python .github/scripts/review_pr.py
