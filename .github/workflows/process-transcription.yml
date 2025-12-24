@@ -2,14 +2,15 @@ name: Process Voice Transcription
 
 on:
   issues:
-    types: [opened, labeled]
+    types: [labeled]
 
 jobs:
   process:
-    # Only process open issues with voice_transcription label that haven't been reviewed
+    # Only process when voice_transcription label is added (not other labels)
+    # Skip if already reviewed
     if: |
+      github.event.label.name == 'voice_transcription' &&
       github.event.issue.state == 'open' &&
-      contains(github.event.issue.labels.*.name, 'voice_transcription') &&
       !contains(github.event.issue.labels.*.name, 'ai-reviewed')
 
     runs-on: ubuntu-latest
