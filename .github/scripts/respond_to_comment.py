@@ -45,11 +45,14 @@ from scripts.utils.github_client import (  # noqa: E402
     remove_labels,
     reopen_issue,
 )
+from scripts.utils.knowledge_base import load_editorial_context  # noqa: E402
 from scripts.utils.llm_client import (  # noqa: E402
     ConversationalIntent,
+    LLMResponse,
     call_editorial,
     call_editorial_structured,
 )
+from scripts.utils.reasoning_log import get_actions_logger  # noqa: E402
 
 
 def set_output(name: str, value: str):
@@ -94,7 +97,13 @@ def extract_target_file(comments: list, issue_number: int) -> tuple[str, bool]:
     return None, False
 
 
-def build_intent_prompt(issue, comments: list, comment_body: str, issue_number: int) -> str:
+def build_intent_prompt(
+    issue,
+    comments: list,
+    comment_body: str,
+    issue_number: int,
+    editorial_context: dict = None,
+) -> str:
     """Build prompt for inferring user intent from conversation."""
     # Build conversation history
     history = f"**Original transcript/issue body:**\n{issue.body}\n\n"
@@ -106,7 +115,23 @@ def build_intent_prompt(issue, comments: list, comment_body: str, issue_number: 
     labels = [lbl.name for lbl in issue.labels]
     state = issue.state
 
+    # Build editorial context section if available
+    persona_section = ""
+    guidelines_section = ""
+    if editorial_context:
+        if editorial_context.get("persona"):
+            persona_section = f"""
+## Your Editorial Persona
+{editorial_context['persona']}
+"""
+        if editorial_context.get("guidelines"):
+            guidelines_section = f"""
+## Editorial Guidelines (Follow These)
+{editorial_context['guidelines']}
+"""
+
     return f"""You are an AI book editor assistant. Analyze this conversation and determine what action(s) the author wants you to take.
+{persona_section}{guidelines_section}
 
 ## Current Issue State
 - Issue #{issue_number}: "{issue.title}"
@@ -146,18 +171,88 @@ For issues, you can:
 Return a structured response with the action(s) to take and a natural language response to send."""
 
 
-def infer_intent(issue, comments: list, comment_body: str, issue_number: int) -> tuple[ConversationalIntent, str]:
+def infer_intent(
+    issue,
+    comments: list,
+    comment_body: str,
+    issue_number: int,
+    repo=None,
+) -> tuple[ConversationalIntent, LLMResponse]:
     """
     Use LLM to infer user intent from conversation.
-    Returns (intent, raw_llm_response_for_logging).
+
+    Loads editorial context (persona, guidelines) to ensure the AI
+    responds in character and follows the established rules.
+
+    Returns (intent, llm_response) - llm_response contains reasoning.
     """
-    prompt = build_intent_prompt(issue, comments, comment_body, issue_number)
+    # Load editorial context for consistent persona
+    editorial_context = None
+    if repo:
+        try:
+            editorial_context = load_editorial_context(repo)
+            print("Loaded editorial context (persona + guidelines)")
+        except Exception as e:
+            print(f"Warning: Could not load editorial context: {e}")
+
+    prompt = build_intent_prompt(
+        issue=issue,
+        comments=comments,
+        comment_body=comment_body,
+        issue_number=issue_number,
+        editorial_context=editorial_context,
+    )
 
     intent, llm_response = call_editorial_structured(
         prompt=prompt,
         response_model=ConversationalIntent,
         max_tokens=4000,
     )
+
+    # Log the reasoning for learning and transparency
+    try:
+        logger = get_actions_logger()
+
+        # Build conversation summary
+        summary = f"Issue #{issue_number}: {issue.title[:50]}..."
+        if comments:
+            summary += f" ({len(comments)} comments)"
+
+        # Extract reasoning
+        reasoning_text = llm_response.reasoning or ""
+        thinking_blocks = [b.thinking for b in llm_response.thinking_blocks]
+
+        # Build list of proposed actions
+        actions_proposed = []
+        for action in intent.issue_actions:
+            if action.action == "close":
+                actions_proposed.append(f"close (reason: {action.close_reason or 'completed'})")
+            elif action.action == "create_pr":
+                actions_proposed.append("create PR")
+            elif action.action == "add_labels":
+                actions_proposed.append(f"add labels: {', '.join(action.labels)}")
+            elif action.action == "set_placement":
+                actions_proposed.append(f"set placement: {action.target_file}")
+            elif action.action not in ("none", "respond"):
+                actions_proposed.append(action.action)
+
+        logger.log_decision(
+            issue_number=issue_number,
+            author_message=comment_body[:500],
+            conversation_summary=summary,
+            model_used=llm_response.usage.model if llm_response.usage else "unknown",
+            reasoning=reasoning_text,
+            thinking_blocks=thinking_blocks,
+            inferred_intent=intent.response_text[:200],
+            confidence=intent.confidence,
+            actions_proposed=actions_proposed,
+            confirmation_required=intent.needs_confirmation or intent.confidence != "high",
+            tokens_used=llm_response.usage.total_tokens if llm_response.usage else 0,
+            cost_usd=llm_response.usage.cost_usd if llm_response.usage else 0.0,
+        )
+        print("Reasoning logged to .ai-context/reasoning-log.jsonl")
+    except Exception as e:
+        print(f"Warning: Could not log reasoning: {e}")
 
     return intent, llm_response
 
@@ -235,9 +330,9 @@ def main():
 
     print("Inferring user intent from conversation...")
 
-    # Use LLM to infer intent
+    # Use LLM to infer intent (with editorial context)
     try:
-        intent, llm_response = infer_intent(issue, comments, comment_body, issue_number)
+        intent, llm_response = infer_intent(issue, comments, comment_body, issue_number, repo=repo)
         print(f"Intent inferred: confidence={intent.confidence}, understood={intent.understood}")
         print(f"LLM usage: {llm_response.usage.format_compact()}")
     except Exception as e:
@@ -311,6 +406,17 @@ Reply with:
     actions_taken = execute_issue_actions(issue, repo, intent, issue_number)
     if actions_taken:
         print(f"Actions executed: {', '.join(actions_taken)}")
+
+        # Log outcome for learning
+        try:
+            logger = get_actions_logger()
+            logger.update_outcome(
+                issue_number=issue_number,
+                outcome="auto_executed",
+                actions_executed=actions_taken,
+            )
+        except Exception as e:
+            print(f"Warning: Could not log outcome: {e}")
 
     # Check for create_pr action
     has_create_pr = any(a.action == "create_pr" for a in intent.issue_actions)

@@ -21,7 +21,8 @@ from scripts.utils.github_client import (  # noqa: E402
     get_repo,
     read_file_content,
 )
-from scripts.utils.llm_client import call_llm  # noqa: E402
+from scripts.utils.llm_client import call_editorial  # noqa: E402
+from scripts.utils.reasoning_log import get_actions_logger  # noqa: E402
 
 
 def set_output(name: str, value: str):
@@ -36,6 +37,43 @@ def set_output(name: str, value: str):
                 f.write(f"{name}<<{delimiter}\n{value}\n{delimiter}\n")
             else:
                 f.write(f"{name}={value}\n")
+
+
+def get_reasoning_patterns() -> dict:
+    """Analyze patterns from the AI's reasoning logs."""
+    logger = get_actions_logger()
+
+    patterns = {
+        "rejected_decisions": [],
+        "low_confidence_outcomes": [],
+        "reasoning_samples": [],
+        "stats": logger.get_confirmation_patterns(),
+    }
+
+    # Get rejected decisions - these are learning opportunities
+    rejected = logger.get_rejected_decisions(limit=20)
+    for entry in rejected:
+        patterns["rejected_decisions"].append({
+            "issue": entry["issue_number"],
+            "author_said": entry["author_message"][:200],
+            "ai_understood": entry["inferred_intent"],
+            "ai_reasoning": entry["reasoning"][:500] if entry.get("reasoning") else "",
+            "ai_proposed": entry["actions_proposed"],
+            "author_feedback": entry.get("author_feedback", ""),
+        })
+
+    # Get recent entries to sample reasoning
+    recent = logger.get_recent_entries(limit=10)
+    for entry in recent:
+        if entry.get("reasoning"):
+            patterns["reasoning_samples"].append({
+                "issue": entry["issue_number"],
+                "confidence": entry["confidence"],
+                "reasoning_excerpt": entry["reasoning"][:300],
+                "outcome": entry["outcome"],
+            })
+
+    return patterns
 
 
 def get_recent_feedback(repo, days: int = 7) -> dict:
@@ -99,12 +137,19 @@ def main():
     gh = get_github_client()
     repo = get_repo(gh)
 
-    # Get recent feedback
+    # Get recent feedback from GitHub
     print("Collecting recent feedback...")
     feedback = get_recent_feedback(repo)
 
+    # Get reasoning patterns from logs
+    print("Analyzing AI reasoning patterns...")
+    reasoning_patterns = get_reasoning_patterns()
+
     total_items = (
-        len(feedback["issue_comments"]) + len(feedback["pr_reviews"]) + len(feedback["pr_comments"])
+        len(feedback["issue_comments"])
+        + len(feedback["pr_reviews"])
+        + len(feedback["pr_comments"])
+        + len(reasoning_patterns["rejected_decisions"])
     )
 
     if total_items < 3:
@@ -116,8 +161,30 @@ def main():
     persona = read_file_content(repo, "EDITOR_PERSONA.md") or ""
     guidelines = read_file_content(repo, "EDITORIAL_GUIDELINES.md") or ""
 
+    # Build reasoning analysis section
+    reasoning_section = ""
+    if reasoning_patterns["rejected_decisions"]:
+        reasoning_section = "\n### AI Reasoning Analysis (from chain-of-thought logs)\n\n"
+        reasoning_section += f"**Stats:** {reasoning_patterns['stats']}\n\n"
+        reasoning_section += "**Rejected Decisions (learning opportunities):**\n"
+        for rej in reasoning_patterns["rejected_decisions"][:5]:
+            reasoning_section += f"""
+- Issue #{rej['issue']}:
+  - Author said: "{rej['author_said'][:100]}..."
+  - AI understood: "{rej['ai_understood']}"
+  - AI proposed: {rej['ai_proposed']}
+  - AI reasoning: "{rej['ai_reasoning'][:200]}..."
+  - Author feedback: "{rej['author_feedback'][:100] if rej['author_feedback'] else 'None'}"
+"""
+
     # Analyze with Claude
-    prompt = f"""Analyze this author feedback to identify patterns and suggest improvements to the AI editor's guidelines.
+    prompt = f"""Analyze this author feedback AND the AI's reasoning patterns to identify improvements.
+
+**IMPORTANT**: Pay special attention to the AI Reasoning Analysis section. When the AI's reasoning
+led to rejected decisions, this is a direct learning opportunity. Identify what the AI got wrong
+in its chain-of-thought and suggest how to improve.
+
+Analyze this author feedback to identify patterns and suggest improvements to the AI editor's guidelines.
 
 ## Current Editor Persona
 {persona}
@@ -135,6 +202,7 @@ def main():
 
 ### PR Inline Comments
 {chr(10).join([f"- PR #{f['pr']} on {f['file']}: {f['comment'][:200]}" for f in feedback['pr_comments']][:20])}
+{reasoning_section}
 
 ## Your Task
 
@@ -167,9 +235,13 @@ Format your response as:
 
 If there are no clear patterns or necessary changes, say so. Don't suggest changes for the sake of changes."""
 
-    print("Analyzing feedback patterns...")
-    llm_response = call_llm(prompt, max_tokens=4000)
+    print("Analyzing feedback patterns (with chain-of-thought reasoning)...")
+    llm_response = call_editorial(prompt, max_tokens=4000)
     response = llm_response.content
+
+    # Log the learning analysis reasoning
+    if llm_response.has_reasoning():
+        print(f"Learning analysis reasoning captured ({len(llm_response.reasoning or '')} chars)")
 
     # Check if there are actual suggestions
     if "no clear patterns" in response.lower() or "no necessary changes" in response.lower():
