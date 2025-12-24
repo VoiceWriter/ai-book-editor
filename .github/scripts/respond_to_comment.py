@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Respond to @ai-editor commands in issue comments.
+Respond to /ai-editor commands in issue comments.
 
 Handles:
-- @ai-editor create PR - Signals workflow to create PR
-- @ai-editor place in [file.md] - Sets target file
-- @ai-editor [anything else] - Conversational response
+- /ai-editor create PR - Signals workflow to create PR
+- /ai-editor place in [file.md] - Sets target file
+- /ai-editor [anything else] - Conversational response
 
 OUTPUTS:
 - create_pr: 'true' if PR should be created
@@ -93,8 +93,8 @@ def main():
     # Normalize command
     comment_lower = comment_body.lower()
 
-    # === Handle @ai-editor create PR ===
-    if "@ai-editor create pr" in comment_lower:
+    # === Handle /ai-editor create PR ===
+    if "/ai-editor create pr" in comment_lower:
         print("Preparing PR creation...")
 
         # Determine target file - REQUIRE explicit placement
@@ -107,10 +107,10 @@ def main():
                 "response_comment",
                 "**I need to know where to put this content.**\n\n"
                 "Please specify the target by saying one of:\n"
-                "- `@ai-editor place in chapter-03.md` - to add to an existing chapter\n"
-                "- `@ai-editor place in new-chapter.md` - to create a new chapter\n"
-                "- `@ai-editor place in uncategorized.md` - if you're not sure yet\n\n"
-                "Then say `@ai-editor create PR` again.",
+                "- `/ai-editor place in chapter-03.md` - to add to an existing chapter\n"
+                "- `/ai-editor place in new-chapter.md` - to create a new chapter\n"
+                "- `/ai-editor place in uncategorized.md` - if you're not sure yet\n\n"
+                "Then say `/ai-editor create PR` again.",
             )
             print("No target specified, asking author for placement")
             return
@@ -136,18 +136,27 @@ def main():
 
         # Call LLM to prepare editorial-quality content
         print("Calling LLM to prepare editorial content...")
+
+        # Build prompt sections
+        persona_section = "**Editor Persona:** " + context['persona'] if context.get('persona') else ""
+        guidelines_section = "**Editorial Guidelines:** " + context['guidelines'] if context.get('guidelines') else ""
+        if existing_chapter:
+            existing_section = "**Existing chapter content:**\n" + existing_chapter[:2000] + "..."
+        else:
+            existing_section = "**This will be a new file.**"
+
         editorial_prompt = f"""You are a professional book editor preparing content for integration into a manuscript.
 
-{f"**Editor Persona:** {context['persona']}" if context.get('persona') else ""}
+{persona_section}
 
-{f"**Editorial Guidelines:** {context['guidelines']}" if context.get('guidelines') else ""}
+{guidelines_section}
 
 **Conversation so far:**
 {history}
 
 **Target file:** `{target_path}`
 
-{f"**Existing chapter content:**\n{existing_chapter[:2000]}..." if existing_chapter else "**This will be a new file.**"}
+{existing_section}
 
 **Your task:**
 1. Take the cleaned transcript from our conversation and prepare it for integration
@@ -241,8 +250,8 @@ Return your response in this format:
         print(f"PR creation prepared for {target_path}")
         return
 
-    # === Handle @ai-editor place in [file] ===
-    if "@ai-editor place in" in comment_lower:
+    # === Handle /ai-editor place in [file] ===
+    if "/ai-editor place in" in comment_lower:
         match = re.search(r"place in (\S+\.md)", comment_lower)
         if match:
             filename = match.group(1)
@@ -250,13 +259,13 @@ Return your response in this format:
             set_output(
                 "response_comment",
                 f"Got it! I'll target `chapters/{filename}` when creating the PR.\n\n"
-                f"When you're ready, just say `@ai-editor create PR`.",
+                f"When you're ready, just say `/ai-editor create PR`.",
             )
             print(f"Target file set to {filename}")
             return
 
-    # === Handle general @ai-editor mention ===
-    if "@ai-editor" in comment_lower:
+    # === Handle general /ai-editor mention ===
+    if "/ai-editor" in comment_lower:
         print("Generating conversational response...")
 
         # Build conversation history
@@ -276,7 +285,7 @@ Respond helpfully and concisely. If they've:
 - Answered your questions: acknowledge and confirm understanding
 - Given direction: confirm you understand and ask if they want to proceed
 - Asked a question: answer based on your analysis
-- Said to create a PR: remind them to type "@ai-editor create PR"
+- Said to create a PR: remind them to type "/ai-editor create PR"
 
 Keep responses brief and focused. You're a collaborator, not a lecturer."""
 
@@ -292,10 +301,10 @@ Keep responses brief and focused. You're a collaborator, not a lecturer."""
         print("Conversational response generated")
         return
 
-    # No @ai-editor mention found
+    # No /ai-editor mention found
     set_output("create_pr", "false")
     set_output("response_comment", "")
-    print("No @ai-editor command found, skipping.")
+    print("No /ai-editor command found, skipping.")
 
 
 if __name__ == "__main__":

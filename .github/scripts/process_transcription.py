@@ -132,8 +132,8 @@ Format your response with clear ### headers for each section."""
 
 **To integrate this content:**
 1. Reply with any feedback or answers to my questions above
-2. Specify placement: `@ai-editor place in chapter-name.md`
-3. When ready: `@ai-editor create PR`
+2. Specify placement: `/ai-editor place in chapter-name.md`
+3. When ready: `/ai-editor create PR`
 
 **Or if this isn't ready:**
 - Close this issue if you want to discard it
