@@ -97,11 +97,6 @@ def main():
     if "@ai-editor create pr" in comment_lower:
         print("Preparing PR creation...")
 
-        # Get cleaned content
-        cleaned_content = extract_cleaned_transcript(comments)
-        if not cleaned_content:
-            cleaned_content = issue.body  # Fallback to original
-
         # Determine target file - REQUIRE explicit placement
         target_filename, was_explicit = extract_target_file(comments, issue_number)
 
@@ -126,8 +121,69 @@ def main():
         else:
             target_path = f"chapters/{target_filename}"
 
-        # Write cleaned content to file for workflow
-        Path("output/cleaned-content.md").write_text(cleaned_content)
+        # Load editorial context for proper editorial voice
+        from scripts.utils.knowledge_base import load_editorial_context
+        context = load_editorial_context(repo)
+
+        # Get existing chapter content if appending
+        from scripts.utils.github_client import read_file_content
+        existing_chapter = read_file_content(repo, target_path) if target_filename != "uncategorized.md" else None
+
+        # Build conversation history for context
+        history = f"**Original voice memo:**\n{issue.body}\n\n"
+        for c in comments:
+            history += f"**{c['user']}:** {c['body'][:1000]}\n\n"
+
+        # Call LLM to prepare editorial-quality content
+        print("Calling LLM to prepare editorial content...")
+        editorial_prompt = f"""You are a professional book editor preparing content for integration into a manuscript.
+
+{f"**Editor Persona:** {context['persona']}" if context.get('persona') else ""}
+
+{f"**Editorial Guidelines:** {context['guidelines']}" if context.get('guidelines') else ""}
+
+**Conversation so far:**
+{history}
+
+**Target file:** `{target_path}`
+
+{f"**Existing chapter content:**\n{existing_chapter[:2000]}..." if existing_chapter else "**This will be a new file.**"}
+
+**Your task:**
+1. Take the cleaned transcript from our conversation and prepare it for integration
+2. Polish the prose while preserving the author's voice exactly
+3. Add any necessary transitions if appending to existing content
+4. Format appropriately for the book's style
+5. Note any concerns or suggestions for the author
+
+Return your response in this format:
+
+### Prepared Content
+[The polished content ready for the chapter]
+
+### Editorial Notes
+[Your notes on what you changed and why, any concerns, suggestions for the author]
+
+### Integration Recommendation
+[How this content should fit - beginning/middle/end of chapter, or as new section]"""
+
+        llm_response = call_editorial(editorial_prompt, max_tokens=4000)
+        print(f"LLM call complete: {llm_response.usage.format_compact()}")
+
+        # Extract the prepared content
+        response_text = llm_response.content
+        if "### Prepared Content" in response_text:
+            content_match = re.search(
+                r"### Prepared Content\s*\n(.*?)(?=### Editorial Notes|### Integration|\Z)",
+                response_text,
+                re.DOTALL
+            )
+            prepared_content = content_match.group(1).strip() if content_match else response_text
+        else:
+            prepared_content = response_text
+
+        # Write prepared content to file for workflow
+        Path("output/cleaned-content.md").write_text(prepared_content)
 
         # Also write it to the actual target path (workflow will commit)
         Path(target_path).parent.mkdir(parents=True, exist_ok=True)
@@ -135,34 +191,52 @@ def main():
         # Check if file exists and append or create
         if Path(target_path).exists():
             existing = Path(target_path).read_text()
-            Path(target_path).write_text(existing + "\n\n---\n\n" + cleaned_content)
+            Path(target_path).write_text(existing + "\n\n---\n\n" + prepared_content)
         else:
-            Path(target_path).write_text(cleaned_content)
+            Path(target_path).write_text(prepared_content)
 
         # Set outputs for workflow
         set_output("create_pr", "true")
         set_output("target_file", target_path)
         set_output("scope", target_filename.replace(".md", ""))
 
-        pr_body = f"""### Content Preview
+        # Format reasoning section
+        reasoning_section = llm_response.format_editorial_explanation()
 
-{cleaned_content[:500]}{'...' if len(cleaned_content) > 500 else ''}
+        pr_body = f"""## Editorial Integration
+
+**Target:** `{target_path}`
+**Source:** Issue #{issue_number}
 
 ---
 
-### Target: `{target_path}`
+{response_text}
+
+---
+
+{reasoning_section}
 
 ### Editorial Checklist
 
 - [ ] Content flows naturally in context
-- [ ] Formatting matches existing chapters
+- [ ] Author's voice is preserved
 - [ ] No redundancy with other sections
-- [ ] Voice is consistent"""
+- [ ] Formatting matches book style
+
+---
+
+<sub>{llm_response.usage.format_summary()}</sub>"""
 
         set_output("pr_body", pr_body)
 
-        # Response comment
-        set_output("response_comment", f"Creating PR to add content to `{target_path}`...")
+        # Response comment with full editorial info
+        response_comment = f"""Creating PR to integrate content into `{target_path}`.
+
+{reasoning_section}
+
+<sub>{llm_response.usage.format_summary()}</sub>"""
+
+        set_output("response_comment", response_comment)
 
         print(f"PR creation prepared for {target_path}")
         return
