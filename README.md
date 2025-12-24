@@ -15,11 +15,22 @@ A GitHub-native AI editorial system for transforming voice memos and written fra
 ### 1. Set up your repository
 
 Copy these files to your book repository:
-- `.github/workflows/` - The workflow files
+- `.github/workflows/` - Example workflow files (see below)
 - `.ai-context/` - Knowledge base (customize for your book)
 - `EDITOR_PERSONA.md` - AI personality
 - `EDITORIAL_GUIDELINES.md` - Editorial rules
 - `GLOSSARY.md` - Terminology
+
+**Or use the action directly:**
+
+```yaml
+- uses: VoiceWriter/ai-book-editor@main
+  with:
+    anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+    github-token: ${{ secrets.GITHUB_TOKEN }}
+    mode: process-transcription
+    issue-number: ${{ github.event.issue.number }}
+```
 
 ### 2. Create a GitHub App (for bot identity)
 

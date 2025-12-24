@@ -1,40 +1,60 @@
 name: 'AI Book Editor'
-description: 'GitHub-native AI editorial system for books'
+description: 'GitHub-native AI editorial system for transforming voice memos into polished books'
 author: 'VoiceWriter'
 
 branding:
-  icon: 'edit-3'
+  icon: 'book-open'
   color: 'purple'
 
 inputs:
-  anthropic-key:
-    description: 'Anthropic API key for Claude'
+  anthropic-api-key:
+    description: 'Anthropic API key (or other LLM provider key)'
     required: true
   github-token:
-    description: 'GitHub token for API access'
+    description: 'GitHub token for API access (use App token for bot identity)'
     required: true
   mode:
-    description: 'Operation mode: process-transcription, respond-comment, review-pr, scheduled-review'
-    required: false
-    default: 'process-transcription'
-  style-guide:
-    description: 'Path to style guide file'
-    required: false
-    default: './style-guide.md'
+    description: 'Operation mode'
+    required: true
   issue-number:
-    description: 'Issue number to process (for issue-based modes)'
+    description: 'Issue number (for issue-based modes)'
     required: false
   pr-number:
-    description: 'PR number to review (for PR mode)'
+    description: 'PR number (for review-pr mode)'
     required: false
   comment-body:
     description: 'Comment body (for respond-comment mode)'
     required: false
+  model:
+    description: 'LLM model to use (default: claude-sonnet-4-5-20250929)'
+    required: false
+    default: 'claude-sonnet-4-5-20250929'
 
 outputs:
   result:
     description: 'Result of the operation'
     value: ${{ steps.run.outputs.result }}
+  create-pr:
+    description: 'Whether to create a PR (respond-comment mode)'
+    value: ${{ steps.run.outputs.create_pr }}
+  target-file:
+    description: 'Target file for PR'
+    value: ${{ steps.run.outputs.target_file }}
+  pr-body:
+    description: 'PR body content'
+    value: ${{ steps.run.outputs.pr_body }}
+  response-comment:
+    description: 'Response comment to post'
+    value: ${{ steps.run.outputs.response_comment }}
+  scope:
+    description: 'Content scope'
+    value: ${{ steps.run.outputs.scope }}
+  has-suggestions:
+    description: 'Whether learning found suggestions'
+    value: ${{ steps.run.outputs.has_suggestions }}
+  summary:
+    description: 'Learning summary'
+    value: ${{ steps.run.outputs.summary }}
 
 runs:
   using: 'composite'
@@ -44,24 +64,37 @@ runs:
       with:
         python-version: '3.11'
 
+    - name: Cache pip dependencies
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-ai-book-editor-v1
+        restore-keys: |
+          ${{ runner.os }}-pip-ai-book-editor-
+
     - name: Install dependencies
       shell: bash
       run: pip install -r ${{ github.action_path }}/requirements.txt
 
+    - name: Create output directory
+      shell: bash
+      run: mkdir -p ${{ github.workspace }}/output
+
     - name: Run AI Editor
       id: run
       shell: bash
+      working-directory: ${{ github.workspace }}
       env:
-        ANTHROPIC_API_KEY: ${{ inputs.anthropic-key }}
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
-        MODE: ${{ inputs.mode }}
-        STYLE_GUIDE: ${{ inputs.style-guide }}
         ISSUE_NUMBER: ${{ inputs.issue-number }}
         PR_NUMBER: ${{ inputs.pr-number }}
         COMMENT_BODY: ${{ inputs.comment-body }}
+        MODEL: ${{ inputs.model }}
         GITHUB_REPOSITORY: ${{ github.repository }}
+        ACTION_PATH: ${{ github.action_path }}
       run: |
-        case "$MODE" in
+        case "${{ inputs.mode }}" in
           process-transcription)
             python ${{ github.action_path }}/.github/scripts/process_transcription.py
             ;;
@@ -71,11 +104,18 @@ runs:
           review-pr)
             python ${{ github.action_path }}/.github/scripts/review_pr.py
             ;;
+          extract-knowledge)
+            python ${{ github.action_path }}/.github/scripts/extract_knowledge.py
+            ;;
           scheduled-review)
             python ${{ github.action_path }}/.github/scripts/scheduled_review.py
             ;;
+          learn-from-feedback)
+            python ${{ github.action_path }}/.github/scripts/learn_from_feedback.py
+            ;;
           *)
-            echo "Unknown mode: $MODE"
+            echo "ERROR: Unknown mode: ${{ inputs.mode }}"
+            echo "Valid modes: process-transcription, respond-comment, review-pr, extract-knowledge, scheduled-review, learn-from-feedback"
             exit 1
             ;;
         esac
