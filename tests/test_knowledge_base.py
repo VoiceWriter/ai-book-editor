@@ -102,7 +102,8 @@ class TestLoadEditorialContext:
 
         result = load_editorial_context(repo)
 
-        assert "No persona defined" in result["persona"]
+        # Default persona is now provided (not "No persona defined")
+        assert "Editor Persona" in result["persona"]
         assert "No guidelines defined" in result["guidelines"]
 
     def test_lists_chapter_files(self, mock_repo):

@@ -6,6 +6,8 @@ from typing import Any, Dict, Optional
 import yaml
 
 from .github_client import list_files_in_directory, read_file_content
+from .persona import (format_persona_for_prompt, get_default_persona,
+                      load_persona, load_persona_config)
 
 
 def load_knowledge_base(repo) -> Dict[str, Any]:
@@ -83,11 +85,40 @@ def format_knowledge_for_prompt(knowledge: Dict[str, Any]) -> Optional[str]:
 
 
 def load_editorial_context(repo) -> Dict[str, Any]:
-    """Load all editorial context files."""
+    """
+    Load all editorial context files.
+
+    Persona loading priority:
+    1. JSON persona from personas/ if configured in .ai-context/config.yaml
+    2. EDITOR_PERSONA.md (legacy/custom persona)
+    3. Default built-in persona
+    """
     context = {}
 
+    # Load persona - check for JSON persona first
+    persona_id = load_persona_config(repo)
+    context["persona_id"] = persona_id
+
+    if persona_id:
+        try:
+            persona = load_persona(persona_id)
+            context["persona"] = format_persona_for_prompt(persona)
+            context["persona_object"] = persona
+        except (FileNotFoundError, ValueError) as e:
+            # Fall back to EDITOR_PERSONA.md
+            print(f"Warning: Could not load persona '{persona_id}': {e}")
+            context["persona"] = (
+                read_file_content(repo, "EDITOR_PERSONA.md") or get_default_persona()
+            )
+            context["persona_object"] = None
+    else:
+        # No persona configured - use EDITOR_PERSONA.md or default
+        context["persona"] = (
+            read_file_content(repo, "EDITOR_PERSONA.md") or get_default_persona()
+        )
+        context["persona_object"] = None
+
     # Core editorial files
-    context["persona"] = read_file_content(repo, "EDITOR_PERSONA.md") or "No persona defined."
     context["guidelines"] = (
         read_file_content(repo, "EDITORIAL_GUIDELINES.md") or "No guidelines defined."
     )

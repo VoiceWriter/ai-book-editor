@@ -157,8 +157,27 @@ Every AI editorial decision includes a collapsible "Editorial Reasoning" section
 - Learn from the editorial feedback
 - Trust the AI as a collaborator, not a black box
 
-### EDITOR_PERSONA.md
-Customize the AI's personality and approach. This is tunable - experiment to find what works for you.
+### Editor Personas
+
+Choose from preset editor personalities, each with different approaches to feedback:
+
+| Persona | Style | Best For |
+|---------|-------|----------|
+| **Margot Fielding** | Sharp, ruthless, market-aware | Later drafts, tough love |
+| **Sage Holloway** | Nurturing mentor | Early drafts, building confidence |
+| **Maxwell Blueprint** | Structure-obsessed | Pacing, chapter order |
+| **Sterling Chase** | Commercially strategic | Positioning, hooks, audience |
+| **The Axe** | Brutal, no mercy | Cutting 30%, bloated drafts |
+| **Sunny Brightwell** | Pure encouragement | Writer's block, recovery |
+| **Professor Ashworth** | Academic, literary | Elevating craft |
+| **Chip Madison** | Commercial maximalist | Maximum reach |
+
+**[See all personas and create your own →](PERSONAS.md)**
+
+Configure in `.ai-context/config.yaml`:
+```yaml
+persona: margot
+```
 
 ### EDITORIAL_GUIDELINES.md
 Hard rules the AI must follow. These are non-negotiable.

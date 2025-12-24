@@ -1,0 +1,128 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Editor Persona",
+  "description": "Configuration for an AI editor personality",
+  "type": "object",
+  "required": ["id", "name", "tagline", "traits", "rules"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique identifier (slug)",
+      "pattern": "^[a-z0-9-]+$"
+    },
+    "name": {
+      "type": "string",
+      "description": "Display name of the persona"
+    },
+    "tagline": {
+      "type": "string",
+      "description": "One-line description"
+    },
+    "description": {
+      "type": "string",
+      "description": "Full description of who this editor is"
+    },
+    "traits": {
+      "type": "object",
+      "description": "Personality trait values (0-10 scale)",
+      "properties": {
+        "directness": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "0=diplomatic/hedged, 10=blunt/unfiltered"
+        },
+        "ruthlessness": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "0=preserve everything, 10=murder your darlings"
+        },
+        "voice_protection": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "0=polish toward standard, 10=protect every quirk"
+        },
+        "structure_focus": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "0=let it flow organically, 10=demand clear arcs"
+        },
+        "market_awareness": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "0=art for art's sake, 10=commercial viability focus"
+        },
+        "praise_frequency": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "0=critique only, 10=celebrate what works"
+        },
+        "formality": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "0=casual/profane, 10=academic/professional"
+        },
+        "challenge_level": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "0=gentle suggestions, 10=hard questions"
+        },
+        "specificity": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "0=general direction, 10=line-level precision"
+        }
+      },
+      "required": ["directness", "ruthlessness", "voice_protection", "structure_focus", "market_awareness", "praise_frequency", "formality", "challenge_level", "specificity"]
+    },
+    "rules": {
+      "type": "object",
+      "description": "What this editor does and doesn't do",
+      "properties": {
+        "always": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Things this editor always does"
+        },
+        "never": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Things this editor never does"
+        }
+      }
+    },
+    "voice": {
+      "type": "object",
+      "description": "How this editor communicates",
+      "properties": {
+        "tone": {
+          "type": "string",
+          "description": "Overall tone description"
+        },
+        "phrases": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Characteristic phrases they use"
+        },
+        "avoids": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Phrases/patterns they avoid"
+        }
+      }
+    },
+    "sample_feedback": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Example feedback in this persona's style"
+    }
+  }
+}
