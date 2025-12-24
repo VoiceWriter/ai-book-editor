@@ -5,6 +5,9 @@ from .llm_client import LLMResponse, call_editorial, call_llm  # noqa: F401
 from .persona import (  # noqa: F401
     Persona,
     format_persona_for_prompt,
+    format_persona_list,
     list_available_personas,
     load_persona,
+    parse_persona_command,
+    resolve_persona,
 )

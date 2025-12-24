@@ -11,9 +11,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent / ".github" / "scripts"))
 
 from utils.persona import (Persona, PersonaRules, PersonaTraits,  # noqa: E402
                            PersonaVoice, format_persona_for_prompt,
-                           get_default_persona, get_personas_dir,
-                           list_available_personas, load_persona,
-                           load_persona_config)
+                           format_persona_list, get_default_persona,
+                           get_persona_from_env, get_persona_from_labels,
+                           get_personas_dir, list_available_personas,
+                           load_persona, load_persona_config,
+                           parse_persona_command, resolve_persona)
 
 
 class TestPersonaTraits:
@@ -283,3 +285,208 @@ class TestGetPersonasDir:
         personas_dir = get_personas_dir()
         json_files = list(personas_dir.glob("*.json"))
         assert len(json_files) >= 8  # At least 8 personas (4 core + 4 extreme)
+
+
+class TestParsePersonaCommand:
+    """Tests for parse_persona_command function."""
+
+    def test_use_command(self):
+        """Test @ai-editor use <persona> command."""
+        persona_id, cmd_type, remaining = parse_persona_command("@ai-editor use margot")
+        assert persona_id == "margot"
+        assert cmd_type == "use"
+        assert remaining == ""
+
+    def test_use_command_with_extra_text(self):
+        """Test use command with additional text."""
+        persona_id, cmd_type, remaining = parse_persona_command(
+            "@ai-editor use the-axe and be brutal"
+        )
+        assert persona_id == "the-axe"
+        assert cmd_type == "use"
+        assert remaining == "and be brutal"
+
+    def test_as_command_simple(self):
+        """Test @ai-editor as <persona> command."""
+        persona_id, cmd_type, remaining = parse_persona_command("@ai-editor as sage")
+        assert persona_id == "sage"
+        assert cmd_type == "as"
+        assert remaining == ""
+
+    def test_as_command_with_colon(self):
+        """Test @ai-editor as <persona>: <request> command."""
+        persona_id, cmd_type, remaining = parse_persona_command(
+            "@ai-editor as the-axe: review this chapter"
+        )
+        assert persona_id == "the-axe"
+        assert cmd_type == "as"
+        assert remaining == "review this chapter"
+
+    def test_switch_to_command(self):
+        """Test @ai-editor switch to <persona> command."""
+        persona_id, cmd_type, remaining = parse_persona_command(
+            "@ai-editor switch to sterling"
+        )
+        assert persona_id == "sterling"
+        assert cmd_type == "use"
+
+    def test_list_personas_command(self):
+        """Test @ai-editor list personas command."""
+        persona_id, cmd_type, remaining = parse_persona_command(
+            "@ai-editor list personas"
+        )
+        assert persona_id is None
+        assert cmd_type == "list"
+
+    def test_no_command(self):
+        """Test regular comment without persona command."""
+        persona_id, cmd_type, remaining = parse_persona_command(
+            "@ai-editor review this"
+        )
+        assert persona_id is None
+        assert cmd_type is None
+        assert remaining == "@ai-editor review this"
+
+
+class TestGetPersonaFromLabels:
+    """Tests for get_persona_from_labels function."""
+
+    def test_string_labels(self):
+        """Test with string labels."""
+        labels = ["voice_transcription", "persona:margot", "ai-reviewed"]
+        persona_id = get_persona_from_labels(labels)
+        assert persona_id == "margot"
+
+    def test_object_labels(self):
+        """Test with label objects."""
+        label1 = MagicMock()
+        label1.name = "voice_transcription"
+        label2 = MagicMock()
+        label2.name = "persona:the-axe"
+        labels = [label1, label2]
+        persona_id = get_persona_from_labels(labels)
+        assert persona_id == "the-axe"
+
+    def test_no_persona_label(self):
+        """Test when no persona label exists."""
+        labels = ["voice_transcription", "ai-reviewed"]
+        persona_id = get_persona_from_labels(labels)
+        assert persona_id is None
+
+    def test_invalid_persona_label(self):
+        """Test with invalid persona in label."""
+        labels = ["persona:nonexistent"]
+        persona_id = get_persona_from_labels(labels)
+        assert persona_id is None
+
+
+class TestGetPersonaFromEnv:
+    """Tests for get_persona_from_env function."""
+
+    def test_valid_env_persona(self):
+        """Test with valid EDITOR_PERSONA env var."""
+        with patch.dict("os.environ", {"EDITOR_PERSONA": "margot"}):
+            persona_id = get_persona_from_env()
+        assert persona_id == "margot"
+
+    def test_invalid_env_persona(self):
+        """Test with invalid EDITOR_PERSONA env var."""
+        with patch.dict("os.environ", {"EDITOR_PERSONA": "nonexistent"}):
+            persona_id = get_persona_from_env()
+        assert persona_id is None
+
+    def test_no_env_persona(self):
+        """Test when EDITOR_PERSONA is not set."""
+        with patch.dict("os.environ", {}, clear=True):
+            # Clear the env var if it exists
+            import os
+
+            if "EDITOR_PERSONA" in os.environ:
+                del os.environ["EDITOR_PERSONA"]
+            persona_id = get_persona_from_env()
+        assert persona_id is None
+
+
+class TestResolvePersona:
+    """Tests for resolve_persona function."""
+
+    def test_command_highest_priority(self):
+        """Test that comment command has highest priority."""
+        labels = ["persona:sage"]
+        persona_id, source = resolve_persona(
+            labels=labels, comment="@ai-editor use the-axe"
+        )
+        assert persona_id == "the-axe"
+        assert source == "command"
+
+    def test_label_over_env(self):
+        """Test that label beats env var."""
+        with patch.dict("os.environ", {"EDITOR_PERSONA": "margot"}):
+            labels = ["persona:blueprint"]
+            persona_id, source = resolve_persona(labels=labels)
+        assert persona_id == "blueprint"
+        assert source == "label"
+
+    def test_env_when_no_label(self):
+        """Test env var when no label."""
+        with patch.dict("os.environ", {"EDITOR_PERSONA": "sterling"}):
+            persona_id, source = resolve_persona(labels=[])
+        assert persona_id == "sterling"
+        assert source == "env"
+
+    def test_default_when_nothing_set(self):
+        """Test default when nothing is configured."""
+        with patch.dict("os.environ", {}, clear=True):
+            import os
+
+            if "EDITOR_PERSONA" in os.environ:
+                del os.environ["EDITOR_PERSONA"]
+            persona_id, source = resolve_persona(labels=[])
+        assert persona_id is None
+        assert source == "default"
+
+
+class TestFormatPersonaList:
+    """Tests for format_persona_list function."""
+
+    def test_includes_all_personas(self):
+        """Test that list includes all available personas."""
+        result = format_persona_list()
+        assert "margot" in result
+        assert "sage" in result
+        assert "the-axe" in result
+        assert "Available Personas" in result
+
+    def test_includes_usage_instructions(self):
+        """Test that list includes usage instructions."""
+        result = format_persona_list()
+        assert "@ai-editor use" in result
+        assert "persona:" in result
+
+
+class TestFormatPersonaWithColleagues:
+    """Tests for colleague awareness in persona formatting."""
+
+    def test_includes_colleagues_section(self):
+        """Test that formatted persona includes colleagues."""
+        persona = load_persona("margot")
+        formatted = format_persona_for_prompt(persona)
+        assert "Your Colleagues" in formatted
+        assert "Sage Holloway" in formatted
+        assert "Maxwell Blueprint" in formatted
+
+    def test_excludes_self_from_colleagues(self):
+        """Test that persona doesn't list itself as colleague."""
+        persona = load_persona("margot")
+        formatted = format_persona_for_prompt(persona)
+        # Margot should not appear in the colleagues section
+        # (she's in the header but not in the colleagues list)
+        colleagues_section = formatted.split("Your Colleagues")[1]
+        assert "as margot" not in colleagues_section
+
+    def test_includes_embodiment_instructions(self):
+        """Test that persona includes character embodiment instructions."""
+        persona = load_persona("the-axe")
+        formatted = format_persona_for_prompt(persona)
+        assert "You ARE" in formatted
+        assert "Never break character" in formatted

@@ -5,6 +5,8 @@ Personas define the AI editor's personality traits, voice, and rules.
 """
 
 import json
+import os
+import re
 from pathlib import Path
 from typing import List, Optional
 
@@ -85,7 +87,19 @@ class Persona(BaseModel):
 
 
 # Built-in persona IDs
-BUILTIN_PERSONAS = {"margot", "gentle-guide", "structure-architect", "market-realist"}
+BUILTIN_PERSONAS = {
+    "margot",
+    "sage",
+    "blueprint",
+    "sterling",
+    "the-axe",
+    "cheerleader",
+    "ivory-tower",
+    "bestseller",
+}
+
+# Label prefix for persona override
+PERSONA_LABEL_PREFIX = "persona:"
 
 
 def get_personas_dir() -> Path:
@@ -150,6 +164,32 @@ def load_persona_config(repo) -> Optional[str]:
         return None
 
 
+def get_other_personas_summary(current_id: str) -> str:
+    """Get a brief summary of other personas for cross-referral."""
+    summaries = {
+        "margot": ("Margot Fielding", "tough love, later drafts, cutting fluff"),
+        "sage": ("Sage Holloway", "early drafts, building confidence, nurturing"),
+        "blueprint": ("Maxwell Blueprint", "structure problems, pacing, organization"),
+        "sterling": ("Sterling Chase", "market positioning, hooks, commercial appeal"),
+        "the-axe": ("The Axe", "brutal cuts, bloated manuscripts, no mercy"),
+        "cheerleader": (
+            "Sunny Brightwell",
+            "writer's block, encouragement, positivity",
+        ),
+        "ivory-tower": ("Professor Ashworth", "literary craft, academic rigor"),
+        "bestseller": (
+            "Chip Madison",
+            "maximum reach, readability, commercial optimization",
+        ),
+    }
+
+    lines = []
+    for pid, (name, specialty) in summaries.items():
+        if pid != current_id:
+            lines.append(f"- **{name}** (`@ai-editor as {pid}`): {specialty}")
+    return "\n".join(lines)
+
+
 def format_persona_for_prompt(persona: Persona) -> str:
     """
     Format a persona as text for inclusion in LLM system prompt.
@@ -158,8 +198,17 @@ def format_persona_for_prompt(persona: Persona) -> str:
     """
     lines = []
 
-    # Identity
-    lines.append(f"# Editor: {persona.name}")
+    # Identity and embodiment instruction
+    lines.append(f"# You ARE {persona.name}")
+    lines.append("")
+    lines.append(
+        f"You are not an AI pretending to be an editor. You ARE {persona.name}."
+    )
+    lines.append(f"Speak in first person. Have opinions. Be {persona.tagline.lower()}")
+    lines.append(
+        "Never break character. Never refer to yourself as an AI or assistant."
+    )
+    lines.append("")
     lines.append(f"*{persona.tagline}*")
     lines.append("")
 
@@ -241,7 +290,208 @@ def format_persona_for_prompt(persona: Persona) -> str:
             lines.append(f'*Example {i}:* "{feedback}"')
             lines.append("")
 
+    # Colleagues for second opinions
+    lines.append("## Your Colleagues")
+    lines.append("")
+    lines.append(
+        "If the author needs a different perspective, you can suggest they consult:"
+    )
+    lines.append("")
+    lines.append(get_other_personas_summary(persona.id))
+    lines.append("")
+    lines.append(
+        "You may suggest a colleague when their expertise better fits the author's needs."
+    )
+    lines.append(
+        "For example: 'For the structural issues, you might want Maxwell Blueprint's take.'"
+    )
+    lines.append("")
+
     return "\n".join(lines)
+
+
+def get_persona_from_env() -> Optional[str]:
+    """
+    Get persona override from environment variable.
+
+    Set EDITOR_PERSONA in workflow or secrets to override config.yaml default.
+
+    Returns:
+        Persona ID if set, None otherwise
+    """
+    persona_id = os.environ.get("EDITOR_PERSONA")
+    if persona_id:
+        available = list_available_personas()
+        if persona_id in available:
+            return persona_id
+        print(
+            f"Warning: EDITOR_PERSONA='{persona_id}' not found. Available: {available}"
+        )
+    return None
+
+
+def get_persona_from_labels(labels: list) -> Optional[str]:
+    """
+    Get persona override from issue/PR labels.
+
+    Labels like 'persona:margot' or 'persona:the-axe' override the default.
+
+    Args:
+        labels: List of label names (strings) or label objects with .name
+
+    Returns:
+        Persona ID if found in labels, None otherwise
+    """
+    available = list_available_personas()
+
+    for label in labels:
+        # Handle both string labels and objects with .name
+        label_name = (
+            label if isinstance(label, str) else getattr(label, "name", str(label))
+        )
+
+        if label_name.startswith(PERSONA_LABEL_PREFIX):
+            persona_id = label_name[len(PERSONA_LABEL_PREFIX) :]
+            if persona_id in available:
+                return persona_id
+            print(
+                f"Warning: Label '{label_name}' persona not found. Available: {available}"
+            )
+
+    return None
+
+
+def parse_persona_command(comment: str) -> tuple[Optional[str], Optional[str], str]:
+    """
+    Parse persona switching commands from a comment.
+
+    Supported formats:
+    - '@ai-editor use margot' - Switch persona for this issue (sticky)
+    - '@ai-editor as the-axe' - One-shot persona for this response
+    - '@ai-editor as sage: review this' - One-shot with inline request
+    - '@ai-editor list personas' - Show available personas
+
+    Args:
+        comment: The comment text
+
+    Returns:
+        Tuple of (persona_id, command_type, remaining_text)
+        - persona_id: The requested persona, or None
+        - command_type: 'use' (sticky), 'as' (one-shot), 'list', or None
+        - remaining_text: Text after the command (for inline requests)
+    """
+    # Normalize whitespace
+    text = comment.strip()
+
+    # Pattern: @ai-editor use <persona>
+    use_match = re.search(r"@ai-editor\s+use\s+(\S+)", text, re.IGNORECASE)
+    if use_match:
+        persona_id = use_match.group(1).lower().strip()
+        remaining = text[use_match.end() :].strip()
+        return persona_id, "use", remaining
+
+    # Pattern: @ai-editor as <persona>: <request> or @ai-editor as <persona>
+    as_match = re.search(
+        r"@ai-editor\s+as\s+(\S+?)(?:\s*[,:]\s*(.*))?$", text, re.IGNORECASE | re.DOTALL
+    )
+    if as_match:
+        persona_id = as_match.group(1).lower().strip()
+        remaining = (as_match.group(2) or "").strip()
+        return persona_id, "as", remaining
+
+    # Pattern: @ai-editor list personas
+    if re.search(r"@ai-editor\s+list\s+personas?", text, re.IGNORECASE):
+        return None, "list", ""
+
+    # Pattern: @ai-editor switch to <persona>
+    switch_match = re.search(r"@ai-editor\s+switch\s+to\s+(\S+)", text, re.IGNORECASE)
+    if switch_match:
+        persona_id = switch_match.group(1).lower().strip()
+        remaining = text[switch_match.end() :].strip()
+        return persona_id, "use", remaining
+
+    return None, None, text
+
+
+def format_persona_list() -> str:
+    """
+    Format a markdown table of available personas for display.
+
+    Returns:
+        Markdown formatted persona list
+    """
+    lines = ["## Available Personas", ""]
+    lines.append("| ID | Name | Style |")
+    lines.append("|:---|:-----|:------|")
+
+    for persona_id in list_available_personas():
+        try:
+            persona = load_persona(persona_id)
+            lines.append(f"| `{persona_id}` | {persona.name} | {persona.tagline} |")
+        except (FileNotFoundError, ValueError):
+            pass
+
+    lines.append("")
+    lines.append("**Usage:**")
+    lines.append("- `@ai-editor use margot` - Switch to this persona")
+    lines.append("- `@ai-editor as the-axe: review this` - One-shot with persona")
+    lines.append("- Add label `persona:sage` to issue for per-issue override")
+
+    return "\n".join(lines)
+
+
+def resolve_persona(
+    repo=None,
+    labels: Optional[list] = None,
+    comment: Optional[str] = None,
+) -> tuple[Optional[str], str]:
+    """
+    Resolve which persona to use with cascading priority.
+
+    Priority (highest to lowest):
+    1. Comment command (@ai-editor use/as)
+    2. Issue label (persona:margot)
+    3. Environment variable (EDITOR_PERSONA)
+    4. Config file (.ai-context/config.yaml)
+
+    Args:
+        repo: PyGithub Repository object (for config.yaml)
+        labels: List of issue/PR labels
+        comment: Current comment text (for command parsing)
+
+    Returns:
+        Tuple of (persona_id, source) where source is one of:
+        'command', 'label', 'env', 'config', 'default'
+    """
+    # 1. Check comment command (highest priority)
+    if comment:
+        persona_id, cmd_type, _ = parse_persona_command(comment)
+        if persona_id and cmd_type in ("use", "as"):
+            available = list_available_personas()
+            if persona_id in available:
+                return persona_id, "command"
+
+    # 2. Check labels
+    if labels:
+        persona_id = get_persona_from_labels(labels)
+        if persona_id:
+            return persona_id, "label"
+
+    # 3. Check environment variable
+    persona_id = get_persona_from_env()
+    if persona_id:
+        return persona_id, "env"
+
+    # 4. Check config file
+    if repo:
+        persona_id = load_persona_config(repo)
+        if persona_id:
+            available = list_available_personas()
+            if persona_id in available:
+                return persona_id, "config"
+
+    # 5. Default
+    return None, "default"
 
 
 def get_default_persona() -> str:

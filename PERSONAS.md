@@ -207,7 +207,16 @@ Specificity:       ■■■■■■■■□□  8
 
 ---
 
-## Setting Your Persona
+## Configuring Your Persona
+
+### Priority Order (highest to lowest)
+
+1. **Comment command** - `@ai-editor use margot` or `@ai-editor as the-axe: ...`
+2. **Issue label** - Add `persona:margot` label to issue
+3. **Environment variable** - Set `EDITOR_PERSONA=margot` in workflow
+4. **Config file** - `.ai-context/config.yaml` (default)
+
+### 1. Config File (Default)
 
 Add to your book repository's `.ai-context/config.yaml`:
 
@@ -215,15 +224,50 @@ Add to your book repository's `.ai-context/config.yaml`:
 persona: margot
 ```
 
-Available persona IDs:
-- `margot` - Sharp, ruthless, market-aware
-- `sage` - Nurturing mentor
-- `blueprint` - Structure obsessed
-- `sterling` - Commercially strategic
-- `the-axe` - Brutal cutter
-- `cheerleader` - Pure encouragement
-- `ivory-tower` - Academic/literary
-- `bestseller` - Commercial maximalist
+### 2. Environment Variable
+
+Override the default for all workflows:
+
+```yaml
+# In your workflow file
+env:
+  EDITOR_PERSONA: the-axe
+```
+
+Or set as a repository secret for persistent override.
+
+### 3. Issue Labels
+
+Add a label to any issue for per-issue persona:
+
+```
+persona:sage
+persona:the-axe
+```
+
+### 4. Slash Commands (Highest Priority)
+
+Use in any comment:
+
+```
+@ai-editor use margot           # Switch persona for this issue
+@ai-editor as the-axe: review   # One-shot with specific persona
+@ai-editor switch to sage       # Alternative syntax
+@ai-editor list personas        # Show all available personas
+```
+
+### Available Persona IDs
+
+| ID | Name | Best For |
+|:---|:-----|:---------|
+| `margot` | Margot Fielding | Later drafts, tough love |
+| `sage` | Sage Holloway | Early drafts, building confidence |
+| `blueprint` | Maxwell Blueprint | Structure problems, pacing |
+| `sterling` | Sterling Chase | Market positioning, hooks |
+| `the-axe` | The Axe | Brutal cuts, bloated manuscripts |
+| `cheerleader` | Sunny Brightwell | Writer's block, encouragement |
+| `ivory-tower` | Professor Ashworth | Literary craft, academic rigor |
+| `bestseller` | Chip Madison | Commercial optimization, reach |
 
 ---
 
@@ -276,11 +320,29 @@ The persona, combined with your `EDITORIAL_GUIDELINES.md` and knowledge base, fo
 
 ---
 
+## Second Opinions
+
+Each persona knows their colleagues and can suggest you get a second opinion when appropriate. For example:
+
+> **Margot:** "I've torn this apart—there's good bones here now. But for the structural reorganization, you might want Maxwell Blueprint's take. He lives for this stuff."
+
+> **Sage:** "You're making wonderful progress. When you're ready for tougher feedback on what to cut, The Axe won't sugarcoat it—but only when you're ready."
+
+> **The Axe:** "I've done what I can here. The market positioning is beyond my expertise. Sterling Chase will tell you if this thing will sell."
+
+This lets you get multiple perspectives without losing the coherence of each editor's voice.
+
+---
+
 ## Philosophy
 
 **Why personas instead of sliders?**
 
 A coherent character is more effective than arbitrary trait mixing. Margot's ruthlessness works because it's paired with her voice protection—she's tough on structure but fierce about preserving your voice. The Axe's brutality is consistent across all dimensions. These traits reinforce each other.
+
+**Why full character embodiment?**
+
+Each persona speaks in first person, has opinions, and never breaks character. They're not "an AI pretending to be an editor"—they ARE that editor. This creates more authentic, useful feedback than a generic assistant applying trait weights.
 
 **Why extreme personas?**
 
