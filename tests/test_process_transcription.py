@@ -166,9 +166,9 @@ class TestAnalysisOutput:
 
 **To integrate this content:**
 1. Reply with any feedback or answers to my questions above
-2. Specify placement: `@ai-editor place in chapter-name.md`
-3. When ready: `@ai-editor create PR`
+2. Specify placement: `@margot-ai-editor place in chapter-name.md`
+3. When ready: `@margot-ai-editor create PR`
 """
         assert "Next Steps" in output
-        assert "@ai-editor place in" in output
-        assert "@ai-editor create PR" in output
+        assert "@margot-ai-editor place in" in output
+        assert "@margot-ai-editor create PR" in output

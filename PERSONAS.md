@@ -211,7 +211,7 @@ Specificity:       ■■■■■■■■□□  8
 
 ### Priority Order (highest to lowest)
 
-1. **Comment command** - `@ai-editor use margot` or `@ai-editor as the-axe: ...`
+1. **Comment command** - `@margot-ai-editor use margot` or `@margot-ai-editor as the-axe: ...`
 2. **Issue label** - Add `persona:margot` label to issue
 3. **Environment variable** - Set `EDITOR_PERSONA=margot` in workflow
 4. **Config file** - `.ai-context/config.yaml` (default)
@@ -250,10 +250,10 @@ persona:the-axe
 Use in any comment:
 
 ```
-@ai-editor use margot           # Switch persona for this issue
-@ai-editor as the-axe: review   # One-shot with specific persona
-@ai-editor switch to sage       # Alternative syntax
-@ai-editor list personas        # Show all available personas
+@margot-ai-editor use margot           # Switch persona for this issue
+@margot-ai-editor as the-axe: review   # One-shot with specific persona
+@margot-ai-editor switch to sage       # Alternative syntax
+@margot-ai-editor list personas        # Show all available personas
 ```
 
 ### Available Persona IDs

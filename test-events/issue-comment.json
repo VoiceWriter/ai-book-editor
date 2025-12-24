@@ -12,7 +12,7 @@
   },
   "comment": {
     "id": 1,
-    "body": "@ai-editor create PR",
+    "body": "@margot-ai-editor create PR",
     "user": {
       "login": "testuser"
     }

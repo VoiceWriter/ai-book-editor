@@ -6,10 +6,10 @@ on:
 
 jobs:
   respond:
-    # Only respond to comments on voice_transcription issues that mention @ai-editor
+    # Only respond to comments on voice_transcription issues that mention @margot-ai-editor
     if: |
       contains(github.event.issue.labels.*.name, 'voice_transcription') &&
-      contains(github.event.comment.body, '@ai-editor')
+      contains(github.event.comment.body, '@margot-ai-editor')
 
     runs-on: ubuntu-latest
 

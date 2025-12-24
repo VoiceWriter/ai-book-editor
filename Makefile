@@ -19,7 +19,7 @@ help:
 	@echo ""
 	@echo "GitHub Actions Simulation (requires act + .env):"
 	@echo "  make test-issue     Simulate new voice transcription issue"
-	@echo "  make test-comment   Simulate @ai-editor comment"
+	@echo "  make test-comment   Simulate @margot-ai-editor comment"
 	@echo "  make test-pr        Simulate PR opened event"
 	@echo "  make test-scheduled Run scheduled review locally"
 	@echo ""

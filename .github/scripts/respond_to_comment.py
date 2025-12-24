@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Respond to /ai-editor commands in issue comments.
+Respond to @margot-ai-editor commands in issue comments.
 
 This script uses LLM to infer the author's intent from natural conversation
 and executes appropriate CRUD actions on issues/PRs.
@@ -40,17 +40,20 @@ from scripts.utils.github_client import (  # noqa: E402
     get_github_client,
     get_issue,
     get_issue_comments,
-    get_pr_for_issue,
     get_repo,
     remove_labels,
     reopen_issue,
 )
 from scripts.utils.knowledge_base import load_editorial_context  # noqa: E402
-from scripts.utils.llm_client import (  # noqa: E402
-    ConversationalIntent,
+from scripts.utils.llm_client import (
+    ConversationalIntent,  # noqa: E402
     LLMResponse,
     call_editorial,
     call_editorial_structured,
+)
+from scripts.utils.persona import (
+    format_persona_list,  # noqa: E402
+    parse_persona_command,
 )
 from scripts.utils.reasoning_log import get_actions_logger  # noqa: E402
 
@@ -74,7 +77,9 @@ def extract_cleaned_transcript(comments: list) -> str:
     for comment in reversed(comments):
         body = comment.get("body", "")
         if "### Cleaned Transcript" in body:
-            match = re.search(r"### Cleaned Transcript\s*\n(.*?)(?=###|\n---|\Z)", body, re.DOTALL)
+            match = re.search(
+                r"### Cleaned Transcript\s*\n(.*?)(?=###|\n---|\Z)", body, re.DOTALL
+            )
             if match:
                 return match.group(1).strip()
     return None
@@ -187,11 +192,20 @@ def infer_intent(
     Returns (intent, llm_response) - llm_response contains reasoning.
     """
     # Load editorial context for consistent persona
+    # Pass labels and comment for persona resolution
     editorial_context = None
     if repo:
         try:
-            editorial_context = load_editorial_context(repo)
-            print("Loaded editorial context (persona + guidelines)")
+            labels = [lbl.name for lbl in issue.labels]
+            editorial_context = load_editorial_context(
+                repo,
+                labels=labels,
+                comment=comment_body,
+            )
+            persona_info = ""
+            if editorial_context.get("persona_id"):
+                persona_info = f" (persona: {editorial_context['persona_id']} via {editorial_context['persona_source']})"
+            print(f"Loaded editorial context{persona_info}")
         except Exception as e:
             print(f"Warning: Could not load editorial context: {e}")
 
@@ -226,7 +240,9 @@ def infer_intent(
         actions_proposed = []
         for action in intent.issue_actions:
             if action.action == "close":
-                actions_proposed.append(f"close (reason: {action.close_reason or 'completed'})")
+                actions_proposed.append(
+                    f"close (reason: {action.close_reason or 'completed'})"
+                )
             elif action.action == "create_pr":
                 actions_proposed.append("create PR")
             elif action.action == "add_labels":
@@ -246,7 +262,8 @@ def infer_intent(
             inferred_intent=intent.response_text[:200],
             confidence=intent.confidence,
             actions_proposed=actions_proposed,
-            confirmation_required=intent.needs_confirmation or intent.confidence != "high",
+            confirmation_required=intent.needs_confirmation
+            or intent.confidence != "high",
             tokens_used=llm_response.usage.total_tokens if llm_response.usage else 0,
             cost_usd=llm_response.usage.cost_usd if llm_response.usage else 0.0,
         )
@@ -257,7 +274,9 @@ def infer_intent(
     return intent, llm_response
 
 
-def execute_issue_actions(issue, repo, intent: ConversationalIntent, issue_number: int) -> list[str]:
+def execute_issue_actions(
+    issue, repo, intent: ConversationalIntent, issue_number: int
+) -> list[str]:
     """Execute issue actions and return list of actions taken."""
     actions_taken = []
 
@@ -299,7 +318,9 @@ def execute_issue_actions(issue, repo, intent: ConversationalIntent, issue_numbe
                     body=action.body or "",
                     labels=action.labels if action.labels else None,
                 )
-                actions_taken.append(f"Created issue #{new_issue.number}: {action.title}")
+                actions_taken.append(
+                    f"Created issue #{new_issue.number}: {action.title}"
+                )
 
     return actions_taken
 
@@ -320,25 +341,69 @@ def main():
     # Ensure output directory exists
     Path("output").mkdir(exist_ok=True)
 
-    # Check if /ai-editor is mentioned at all
-    if "/ai-editor" not in comment_body.lower():
-        # No /ai-editor mention found
+    # Check if @margot-ai-editor is mentioned at all (support both @ and / prefix)
+    if (
+        "@margot-ai-editor" not in comment_body.lower()
+        and "@margot-ai-editor" not in comment_body.lower()
+    ):
+        # No ai-editor mention found
         set_output("create_pr", "false")
         set_output("response_comment", "")
-        print("No /ai-editor command found, skipping.")
+        print("No @margot-ai-editor command found, skipping.")
         return
+
+    # === Handle persona commands first (before intent inference) ===
+    persona_id, cmd_type, remaining = parse_persona_command(comment_body)
+
+    # Handle "list personas" command
+    if cmd_type == "list":
+        persona_list = format_persona_list()
+        set_output("create_pr", "false")
+        set_output("response_comment", persona_list)
+        print("Returned persona list")
+        return
+
+    # Handle "use <persona>" command (sticky - adds label)
+    if cmd_type == "use" and persona_id:
+        # Add persona label to issue
+        new_label = f"persona:{persona_id}"
+        try:
+            add_labels(issue, [new_label])
+            response = f"Switching to **{persona_id}** persona for this issue.\n\n"
+            response += "All future responses will use this persona until you switch again.\n\n"
+            response += f"*Label `{new_label}` added to issue.*"
+
+            # If there's remaining text, note we'll process it
+            if remaining.strip():
+                response += f"\n\n---\n\nProcessing your request: *{remaining.strip()}*"
+                # Continue to process the remaining request with the new persona
+            else:
+                set_output("create_pr", "false")
+                set_output("response_comment", response)
+                print(f"Switched to persona: {persona_id}")
+                return
+        except Exception as e:
+            print(f"Warning: Could not add persona label: {e}")
+            # Continue anyway - the persona will still be used via comment parsing
 
     print("Inferring user intent from conversation...")
 
     # Use LLM to infer intent (with editorial context)
     try:
-        intent, llm_response = infer_intent(issue, comments, comment_body, issue_number, repo=repo)
-        print(f"Intent inferred: confidence={intent.confidence}, understood={intent.understood}")
+        intent, llm_response = infer_intent(
+            issue, comments, comment_body, issue_number, repo=repo
+        )
+        print(
+            f"Intent inferred: confidence={intent.confidence}, understood={intent.understood}"
+        )
         print(f"LLM usage: {llm_response.usage.format_compact()}")
     except Exception as e:
         print(f"Error inferring intent: {e}")
         set_output("create_pr", "false")
-        set_output("response_comment", f"Sorry, I had trouble understanding that request. Could you rephrase? Error: {str(e)}")
+        set_output(
+            "response_comment",
+            f"Sorry, I had trouble understanding that request. Could you rephrase? Error: {str(e)}",
+        )
         return
 
     # Check if we need confirmation or clarification
@@ -360,7 +425,9 @@ def main():
         proposed_actions = []
         for action in intent.issue_actions:
             if action.action == "close":
-                proposed_actions.append(f"Close this issue (reason: {action.close_reason or 'completed'})")
+                proposed_actions.append(
+                    f"Close this issue (reason: {action.close_reason or 'completed'})"
+                )
             elif action.action == "create_pr":
                 proposed_actions.append("Create a PR to integrate this content")
             elif action.action == "create_issue":
@@ -376,13 +443,17 @@ def main():
 
         if proposed_actions:
             actions_list = "\n".join(f"- {a}" for a in proposed_actions)
-            question = intent.clarifying_question or "Should I proceed with these actions?"
+            question = (
+                intent.clarifying_question or "Should I proceed with these actions?"
+            )
 
             confidence_note = ""
             if intent.confidence == "low":
                 confidence_note = "\n\n*I'm not entirely sure I understood correctly. Please confirm or clarify.*"
             elif intent.confidence == "medium":
-                confidence_note = "\n\n*Just want to make sure I got this right before proceeding.*"
+                confidence_note = (
+                    "\n\n*Just want to make sure I got this right before proceeding.*"
+                )
 
             response = f"""{intent.response_text}
 
@@ -431,8 +502,8 @@ Reply with:
     # Normalize command for explicit commands (backwards compatibility)
     comment_lower = comment_body.lower()
 
-    # === Handle explicit /ai-editor create PR or inferred create_pr ===
-    if "/ai-editor create pr" in comment_lower or has_create_pr:
+    # === Handle explicit @margot-ai-editor create PR or inferred create_pr ===
+    if "@margot-ai-editor create pr" in comment_lower or has_create_pr:
         print("Preparing PR creation...")
 
         # Determine target file - from intent, conversation, or ask
@@ -449,10 +520,10 @@ Reply with:
                 "response_comment",
                 "**I need to know where to put this content.**\n\n"
                 "Please specify the target by saying one of:\n"
-                "- `/ai-editor place in chapter-03.md` - to add to an existing chapter\n"
-                "- `/ai-editor place in new-chapter.md` - to create a new chapter\n"
-                "- `/ai-editor place in uncategorized.md` - if you're not sure yet\n\n"
-                "Then say `/ai-editor create PR` again.",
+                "- `@margot-ai-editor place in chapter-03.md` - to add to an existing chapter\n"
+                "- `@margot-ai-editor place in new-chapter.md` - to create a new chapter\n"
+                "- `@margot-ai-editor place in uncategorized.md` - if you're not sure yet\n\n"
+                "Then say `@margot-ai-editor create PR` again.",
             )
             print("No target specified, asking author for placement")
             return
@@ -465,11 +536,17 @@ Reply with:
 
         # Load editorial context for proper editorial voice
         from scripts.utils.knowledge_base import load_editorial_context
+
         context = load_editorial_context(repo)
 
         # Get existing chapter content if appending
         from scripts.utils.github_client import read_file_content
-        existing_chapter = read_file_content(repo, target_path) if target_filename != "uncategorized.md" else None
+
+        existing_chapter = (
+            read_file_content(repo, target_path)
+            if target_filename != "uncategorized.md"
+            else None
+        )
 
         # Build conversation history for context
         history = f"**Original voice memo:**\n{issue.body}\n\n"
@@ -480,10 +557,20 @@ Reply with:
         print("Calling LLM to prepare editorial content...")
 
         # Build prompt sections
-        persona_section = "**Editor Persona:** " + context['persona'] if context.get('persona') else ""
-        guidelines_section = "**Editorial Guidelines:** " + context['guidelines'] if context.get('guidelines') else ""
+        persona_section = (
+            "**Editor Persona:** " + context["persona"]
+            if context.get("persona")
+            else ""
+        )
+        guidelines_section = (
+            "**Editorial Guidelines:** " + context["guidelines"]
+            if context.get("guidelines")
+            else ""
+        )
         if existing_chapter:
-            existing_section = "**Existing chapter content:**\n" + existing_chapter[:2000] + "..."
+            existing_section = (
+                "**Existing chapter content:**\n" + existing_chapter[:2000] + "..."
+            )
         else:
             existing_section = "**This will be a new file.**"
 
@@ -527,9 +614,11 @@ Return your response in this format:
             content_match = re.search(
                 r"### Prepared Content\s*\n(.*?)(?=### Editorial Notes|### Integration|\Z)",
                 response_text,
-                re.DOTALL
+                re.DOTALL,
             )
-            prepared_content = content_match.group(1).strip() if content_match else response_text
+            prepared_content = (
+                content_match.group(1).strip() if content_match else response_text
+            )
         else:
             prepared_content = response_text
 
@@ -592,8 +681,8 @@ Return your response in this format:
         print(f"PR creation prepared for {target_path}")
         return
 
-    # === Handle /ai-editor place in [file] (explicit command still supported) ===
-    if "/ai-editor place in" in comment_lower and has_set_placement:
+    # === Handle @margot-ai-editor place in [file] (explicit command still supported) ===
+    if "@margot-ai-editor place in" in comment_lower and has_set_placement:
         # Already handled by intent inference above
         pass
 

@@ -291,8 +291,8 @@ class TestParsePersonaCommand:
     """Tests for parse_persona_command function."""
 
     def test_use_command(self):
-        """Test @ai-editor use <persona> command."""
-        persona_id, cmd_type, remaining = parse_persona_command("@ai-editor use margot")
+        """Test @margot-ai-editor use <persona> command."""
+        persona_id, cmd_type, remaining = parse_persona_command("@margot-ai-editor use margot")
         assert persona_id == "margot"
         assert cmd_type == "use"
         assert remaining == ""
@@ -300,40 +300,40 @@ class TestParsePersonaCommand:
     def test_use_command_with_extra_text(self):
         """Test use command with additional text."""
         persona_id, cmd_type, remaining = parse_persona_command(
-            "@ai-editor use the-axe and be brutal"
+            "@margot-ai-editor use the-axe and be brutal"
         )
         assert persona_id == "the-axe"
         assert cmd_type == "use"
         assert remaining == "and be brutal"
 
     def test_as_command_simple(self):
-        """Test @ai-editor as <persona> command."""
-        persona_id, cmd_type, remaining = parse_persona_command("@ai-editor as sage")
+        """Test @margot-ai-editor as <persona> command."""
+        persona_id, cmd_type, remaining = parse_persona_command("@margot-ai-editor as sage")
         assert persona_id == "sage"
         assert cmd_type == "as"
         assert remaining == ""
 
     def test_as_command_with_colon(self):
-        """Test @ai-editor as <persona>: <request> command."""
+        """Test @margot-ai-editor as <persona>: <request> command."""
         persona_id, cmd_type, remaining = parse_persona_command(
-            "@ai-editor as the-axe: review this chapter"
+            "@margot-ai-editor as the-axe: review this chapter"
         )
         assert persona_id == "the-axe"
         assert cmd_type == "as"
         assert remaining == "review this chapter"
 
     def test_switch_to_command(self):
-        """Test @ai-editor switch to <persona> command."""
+        """Test @margot-ai-editor switch to <persona> command."""
         persona_id, cmd_type, remaining = parse_persona_command(
-            "@ai-editor switch to sterling"
+            "@margot-ai-editor switch to sterling"
         )
         assert persona_id == "sterling"
         assert cmd_type == "use"
 
     def test_list_personas_command(self):
-        """Test @ai-editor list personas command."""
+        """Test @margot-ai-editor list personas command."""
         persona_id, cmd_type, remaining = parse_persona_command(
-            "@ai-editor list personas"
+            "@margot-ai-editor list personas"
         )
         assert persona_id is None
         assert cmd_type == "list"
@@ -341,11 +341,11 @@ class TestParsePersonaCommand:
     def test_no_command(self):
         """Test regular comment without persona command."""
         persona_id, cmd_type, remaining = parse_persona_command(
-            "@ai-editor review this"
+            "@margot-ai-editor review this"
         )
         assert persona_id is None
         assert cmd_type is None
-        assert remaining == "@ai-editor review this"
+        assert remaining == "@margot-ai-editor review this"
 
 
 class TestGetPersonaFromLabels:
@@ -414,7 +414,7 @@ class TestResolvePersona:
         """Test that comment command has highest priority."""
         labels = ["persona:sage"]
         persona_id, source = resolve_persona(
-            labels=labels, comment="@ai-editor use the-axe"
+            labels=labels, comment="@margot-ai-editor use the-axe"
         )
         assert persona_id == "the-axe"
         assert source == "command"
@@ -460,7 +460,7 @@ class TestFormatPersonaList:
     def test_includes_usage_instructions(self):
         """Test that list includes usage instructions."""
         result = format_persona_list()
-        assert "@ai-editor use" in result
+        assert "@margot-ai-editor use" in result
         assert "persona:" in result
 
 

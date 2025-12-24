@@ -211,7 +211,7 @@ ai-book-editor/
 │   └── scripts/
 │       ├── __init__.py
 │       ├── process_transcription.py    # Core: analyze voice memos
-│       ├── respond_to_comment.py       # Handle @ai-editor commands
+│       ├── respond_to_comment.py       # Handle @margot-ai-editor commands
 │       ├── review_pr.py                # Editorial review of PRs
 │       ├── scheduled_review.py         # Full book analysis
 │       ├── extract_knowledge.py        # Store answers in KB
@@ -241,7 +241,7 @@ my-book/
 ├── .github/
 │   ├── workflows/
 │   │   ├── process-transcription.yml   # Voice memo pipeline
-│   │   ├── respond-to-feedback.yml     # @ai-editor commands
+│   │   ├── respond-to-feedback.yml     # @margot-ai-editor commands
 │   │   ├── review-pr.yml               # PR editorial review
 │   │   ├── scheduled-review.yml        # Weekly book review
 │   │   ├── process-ai-question.yml     # Extract knowledge
@@ -858,8 +858,8 @@ Format your response with clear ### headers for each section."""
 
 **To integrate this content:**
 1. Reply with any feedback or answers to my questions above
-2. Specify placement: `@ai-editor place in chapter-name.md`
-3. When ready: `@ai-editor create PR`
+2. Specify placement: `@margot-ai-editor place in chapter-name.md`
+3. When ready: `@margot-ai-editor create PR`
 
 **Or if this isn't ready:**
 - Close this issue if you want to discard it
@@ -895,12 +895,12 @@ if __name__ == '__main__':
 ```python
 #!/usr/bin/env python3
 """
-Respond to @ai-editor commands in issue comments.
+Respond to @margot-ai-editor commands in issue comments.
 
 Handles:
-- @ai-editor create PR - Signals workflow to create PR
-- @ai-editor place in [file.md] - Sets target file
-- @ai-editor [anything else] - Conversational response
+- @margot-ai-editor create PR - Signals workflow to create PR
+- @margot-ai-editor place in [file.md] - Sets target file
+- @margot-ai-editor [anything else] - Conversational response
 
 OUTPUTS:
 - create_pr: 'true' if PR should be created
@@ -985,8 +985,8 @@ def main():
     # Normalize command
     comment_lower = comment_body.lower()
     
-    # === Handle @ai-editor create PR ===
-    if '@ai-editor create pr' in comment_lower:
+    # === Handle @margot-ai-editor create PR ===
+    if '@margot-ai-editor create pr' in comment_lower:
         print("Preparing PR creation...")
         
         # Get cleaned content
@@ -1041,20 +1041,20 @@ def main():
         print(f"PR creation prepared for {target_path}")
         return
     
-    # === Handle @ai-editor place in [file] ===
-    if '@ai-editor place in' in comment_lower:
+    # === Handle @margot-ai-editor place in [file] ===
+    if '@margot-ai-editor place in' in comment_lower:
         match = re.search(r'place in (\S+\.md)', comment_lower)
         if match:
             filename = match.group(1)
             set_output('create_pr', 'false')
             set_output('response_comment',
                 f"📁 Got it! I'll target `chapters/{filename}` when creating the PR.\n\n"
-                f"When you're ready, just say `@ai-editor create PR`.")
+                f"When you're ready, just say `@margot-ai-editor create PR`.")
             print(f"Target file set to {filename}")
             return
     
-    # === Handle general @ai-editor mention ===
-    if '@ai-editor' in comment_lower:
+    # === Handle general @margot-ai-editor mention ===
+    if '@margot-ai-editor' in comment_lower:
         print("Generating conversational response...")
         
         # Build conversation history
@@ -1074,7 +1074,7 @@ Respond helpfully and concisely. If they've:
 - Answered your questions → acknowledge and confirm understanding
 - Given direction → confirm you understand and ask if they want to proceed
 - Asked a question → answer based on your analysis
-- Said to create a PR → remind them to type "@ai-editor create PR"
+- Said to create a PR → remind them to type "@margot-ai-editor create PR"
 
 Keep responses brief and focused. You're a collaborator, not a lecturer."""
 
@@ -1085,10 +1085,10 @@ Keep responses brief and focused. You're a collaborator, not a lecturer."""
         print("Conversational response generated")
         return
     
-    # No @ai-editor mention found
+    # No @margot-ai-editor mention found
     set_output('create_pr', 'false')
     set_output('response_comment', '')
-    print("No @ai-editor command found, skipping.")
+    print("No @margot-ai-editor command found, skipping.")
 
 
 if __name__ == '__main__':
@@ -1189,10 +1189,10 @@ on:
 
 jobs:
   respond:
-    # Only respond to comments on voice_transcription issues that mention @ai-editor
+    # Only respond to comments on voice_transcription issues that mention @margot-ai-editor
     if: |
       contains(github.event.issue.labels.*.name, 'voice_transcription') &&
-      contains(github.event.comment.body, '@ai-editor')
+      contains(github.event.comment.body, '@margot-ai-editor')
     
     runs-on: ubuntu-latest
     

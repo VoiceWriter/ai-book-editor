@@ -34,11 +34,11 @@ Copy these files to your book repository:
 
 ### 2. Create a GitHub App (for bot identity)
 
-All AI actions will appear as `ai-book-editor[bot]` instead of your personal account.
+All AI actions will appear as `margot-ai-editor[bot]` instead of your personal account.
 
 1. Go to **Settings → Developer settings → GitHub Apps → New GitHub App**
 2. Fill in:
-   - **Name:** `ai-book-editor` (or your preferred name)
+   - **Name:** `margot-ai-editor` (or your preferred name)
    - **Homepage URL:** Your repository URL
    - **Callback URL:** `https://example.com` (not used)
    - **Webhook:** Uncheck "Active" (not used)
@@ -79,9 +79,9 @@ Create these labels in your repository:
 ### 6. Interact with the AI
 
 Use these commands in issue comments:
-- `@ai-editor create PR` - Create a PR with the cleaned content
-- `@ai-editor place in chapter-name.md` - Specify target file
-- `@ai-editor [any question]` - Have a conversation
+- `@margot-ai-editor create PR` - Create a PR with the cleaned content
+- `@margot-ai-editor place in chapter-name.md` - Specify target file
+- `@margot-ai-editor [any question]` - Have a conversation
 
 ## Workflows
 
@@ -283,7 +283,7 @@ curl -s https://raw.githubusercontent.com/nektos/act/master/install.sh | sudo ba
 
 # Run workflows (requires .env and Docker)
 make test-issue      # Simulate voice_transcription issue
-make test-comment    # Simulate @ai-editor comment
+make test-comment    # Simulate @margot-ai-editor comment
 make test-pr         # Simulate PR opened
 make test-scheduled  # Simulate scheduled review
 ```

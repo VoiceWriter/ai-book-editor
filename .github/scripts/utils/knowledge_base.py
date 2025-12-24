@@ -6,8 +6,12 @@ from typing import Any, Dict, Optional
 import yaml
 
 from .github_client import list_files_in_directory, read_file_content
-from .persona import (format_persona_for_prompt, get_default_persona,
-                      load_persona, load_persona_config)
+from .persona import (
+    format_persona_for_prompt,
+    get_default_persona,
+    load_persona,
+    resolve_persona,
+)
 
 
 def load_knowledge_base(repo) -> Dict[str, Any]:
@@ -84,20 +88,37 @@ def format_knowledge_for_prompt(knowledge: Dict[str, Any]) -> Optional[str]:
     return "\n\n".join(sections) if sections else None
 
 
-def load_editorial_context(repo) -> Dict[str, Any]:
+def load_editorial_context(
+    repo,
+    labels: Optional[list] = None,
+    comment: Optional[str] = None,
+) -> Dict[str, Any]:
     """
     Load all editorial context files.
 
-    Persona loading priority:
-    1. JSON persona from personas/ if configured in .ai-context/config.yaml
-    2. EDITOR_PERSONA.md (legacy/custom persona)
-    3. Default built-in persona
+    Persona loading priority (highest to lowest):
+    1. Comment command (@margot-ai-editor use/as)
+    2. Issue label (persona:margot)
+    3. Environment variable (EDITOR_PERSONA)
+    4. Config file (.ai-context/config.yaml)
+    5. EDITOR_PERSONA.md (legacy/custom persona)
+    6. Default built-in persona
+
+    Args:
+        repo: PyGithub Repository object
+        labels: Optional list of issue/PR labels for persona override
+        comment: Optional comment text for persona command parsing
     """
     context = {}
 
-    # Load persona - check for JSON persona first
-    persona_id = load_persona_config(repo)
+    # Resolve persona using cascading priority
+    persona_id, persona_source = resolve_persona(
+        repo=repo,
+        labels=labels,
+        comment=comment,
+    )
     context["persona_id"] = persona_id
+    context["persona_source"] = persona_source
 
     if persona_id:
         try:

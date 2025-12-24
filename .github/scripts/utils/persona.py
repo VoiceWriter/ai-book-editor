@@ -186,7 +186,7 @@ def get_other_personas_summary(current_id: str) -> str:
     lines = []
     for pid, (name, specialty) in summaries.items():
         if pid != current_id:
-            lines.append(f"- **{name}** (`@ai-editor as {pid}`): {specialty}")
+            lines.append(f"- **{name}** (`@margot-ai-editor as {pid}`): {specialty}")
     return "\n".join(lines)
 
 
@@ -366,10 +366,10 @@ def parse_persona_command(comment: str) -> tuple[Optional[str], Optional[str], s
     Parse persona switching commands from a comment.
 
     Supported formats:
-    - '@ai-editor use margot' - Switch persona for this issue (sticky)
-    - '@ai-editor as the-axe' - One-shot persona for this response
-    - '@ai-editor as sage: review this' - One-shot with inline request
-    - '@ai-editor list personas' - Show available personas
+    - '@margot-ai-editor use margot' - Switch persona for this issue (sticky)
+    - '@margot-ai-editor as the-axe' - One-shot persona for this response
+    - '@margot-ai-editor as sage: review this' - One-shot with inline request
+    - '@margot-ai-editor list personas' - Show available personas
 
     Args:
         comment: The comment text
@@ -383,28 +383,28 @@ def parse_persona_command(comment: str) -> tuple[Optional[str], Optional[str], s
     # Normalize whitespace
     text = comment.strip()
 
-    # Pattern: @ai-editor use <persona>
-    use_match = re.search(r"@ai-editor\s+use\s+(\S+)", text, re.IGNORECASE)
+    # Pattern: @margot-ai-editor use <persona>
+    use_match = re.search(r"@margot-ai-editor\s+use\s+(\S+)", text, re.IGNORECASE)
     if use_match:
         persona_id = use_match.group(1).lower().strip()
         remaining = text[use_match.end() :].strip()
         return persona_id, "use", remaining
 
-    # Pattern: @ai-editor as <persona>: <request> or @ai-editor as <persona>
+    # Pattern: @margot-ai-editor as <persona>: <request> or @margot-ai-editor as <persona>
     as_match = re.search(
-        r"@ai-editor\s+as\s+(\S+?)(?:\s*[,:]\s*(.*))?$", text, re.IGNORECASE | re.DOTALL
+        r"@margot-ai-editor\s+as\s+(\S+?)(?:\s*[,:]\s*(.*))?$", text, re.IGNORECASE | re.DOTALL
     )
     if as_match:
         persona_id = as_match.group(1).lower().strip()
         remaining = (as_match.group(2) or "").strip()
         return persona_id, "as", remaining
 
-    # Pattern: @ai-editor list personas
-    if re.search(r"@ai-editor\s+list\s+personas?", text, re.IGNORECASE):
+    # Pattern: @margot-ai-editor list personas
+    if re.search(r"@margot-ai-editor\s+list\s+personas?", text, re.IGNORECASE):
         return None, "list", ""
 
-    # Pattern: @ai-editor switch to <persona>
-    switch_match = re.search(r"@ai-editor\s+switch\s+to\s+(\S+)", text, re.IGNORECASE)
+    # Pattern: @margot-ai-editor switch to <persona>
+    switch_match = re.search(r"@margot-ai-editor\s+switch\s+to\s+(\S+)", text, re.IGNORECASE)
     if switch_match:
         persona_id = switch_match.group(1).lower().strip()
         remaining = text[switch_match.end() :].strip()
@@ -433,8 +433,8 @@ def format_persona_list() -> str:
 
     lines.append("")
     lines.append("**Usage:**")
-    lines.append("- `@ai-editor use margot` - Switch to this persona")
-    lines.append("- `@ai-editor as the-axe: review this` - One-shot with persona")
+    lines.append("- `@margot-ai-editor use margot` - Switch to this persona")
+    lines.append("- `@margot-ai-editor as the-axe: review this` - One-shot with persona")
     lines.append("- Add label `persona:sage` to issue for per-issue override")
 
     return "\n".join(lines)
@@ -449,7 +449,7 @@ def resolve_persona(
     Resolve which persona to use with cascading priority.
 
     Priority (highest to lowest):
-    1. Comment command (@ai-editor use/as)
+    1. Comment command (@margot-ai-editor use/as)
     2. Issue label (persona:margot)
     3. Environment variable (EDITOR_PERSONA)
     4. Config file (.ai-context/config.yaml)

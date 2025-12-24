@@ -135,7 +135,7 @@ class TestBuildIntentPrompt:
         prompt = build_intent_prompt(
             issue=sample_issue_with_labels,
             comments=sample_comments,
-            comment_body="/ai-editor create PR",
+            comment_body="@margot-ai-editor create PR",
             issue_number=42,
         )
 
@@ -151,7 +151,7 @@ class TestBuildIntentPrompt:
         prompt = build_intent_prompt(
             issue=sample_issue_with_labels,
             comments=sample_comments,
-            comment_body="/ai-editor thanks!",
+            comment_body="@margot-ai-editor thanks!",
             issue_number=42,
         )
 
@@ -165,7 +165,7 @@ class TestBuildIntentPrompt:
         prompt = build_intent_prompt(
             issue=sample_issue_with_labels,
             comments=sample_comments,
-            comment_body="/ai-editor close this",
+            comment_body="@margot-ai-editor close this",
             issue_number=42,
         )
 
@@ -178,7 +178,7 @@ class TestBuildIntentPrompt:
         """Should include the latest comment from author."""
         from scripts.respond_to_comment import build_intent_prompt
 
-        comment = "/ai-editor close this issue, I changed my mind"
+        comment = "@margot-ai-editor close this issue, I changed my mind"
         prompt = build_intent_prompt(
             issue=sample_issue_with_labels,
             comments=sample_comments,
@@ -204,7 +204,7 @@ class TestBuildIntentPromptWithEditorialContext:
         prompt = build_intent_prompt(
             issue=sample_issue_with_labels,
             comments=sample_comments,
-            comment_body="/ai-editor help",
+            comment_body="@margot-ai-editor help",
             issue_number=42,
             editorial_context=context,
         )
@@ -224,7 +224,7 @@ class TestBuildIntentPromptWithEditorialContext:
         prompt = build_intent_prompt(
             issue=sample_issue_with_labels,
             comments=sample_comments,
-            comment_body="/ai-editor help",
+            comment_body="@margot-ai-editor help",
             issue_number=42,
             editorial_context=context,
         )
@@ -239,7 +239,7 @@ class TestBuildIntentPromptWithEditorialContext:
         prompt = build_intent_prompt(
             issue=sample_issue_with_labels,
             comments=sample_comments,
-            comment_body="/ai-editor help",
+            comment_body="@margot-ai-editor help",
             issue_number=42,
             editorial_context=None,
         )
