@@ -57,17 +57,21 @@ def extract_cleaned_transcript(comments: list) -> str:
     return None
 
 
-def extract_target_file(comments: list, issue_number: int) -> str:
-    """Determine target file from comments or default."""
+def extract_target_file(comments: list, issue_number: int) -> tuple[str, bool]:
+    """
+    Determine target file from comments.
+    Returns (filename, was_explicitly_set).
+    """
     for comment in reversed(comments):
         body = comment.get("body", "")
         match = re.search(r"place in (\S+\.md)", body.lower())
         if match:
             filename = match.group(1)
             if "/" not in filename:
-                return filename
-            return filename.split("/")[-1]
-    return f"voice-memo-{issue_number}.md"
+                return filename, True
+            return filename.split("/")[-1], True
+    # No explicit placement - return None
+    return None, False
 
 
 def main():
@@ -97,15 +101,30 @@ def main():
         cleaned_content = extract_cleaned_transcript(comments)
         if not cleaned_content:
             cleaned_content = issue.body  # Fallback to original
+
+        # Determine target file - REQUIRE explicit placement
+        target_filename, was_explicit = extract_target_file(comments, issue_number)
+
+        if not was_explicit:
+            # No explicit placement - ask the author instead of dumping to generic file
+            set_output("create_pr", "false")
             set_output(
                 "response_comment",
-                "Couldn't find my cleaned transcript. Using original content. "
-                "You may want to edit the PR after it's created.",
+                "**I need to know where to put this content.**\n\n"
+                "Please specify the target by saying one of:\n"
+                "- `@ai-editor place in chapter-03.md` - to add to an existing chapter\n"
+                "- `@ai-editor place in new-chapter.md` - to create a new chapter\n"
+                "- `@ai-editor place in uncategorized.md` - if you're not sure yet\n\n"
+                "Then say `@ai-editor create PR` again.",
             )
+            print("No target specified, asking author for placement")
+            return
 
-        # Determine target file
-        target_filename = extract_target_file(comments, issue_number)
-        target_path = f"chapters/{target_filename}"
+        # Determine the path based on whether it's uncategorized
+        if target_filename == "uncategorized.md":
+            target_path = f"uncategorized/voice-memo-{issue_number}.md"
+        else:
+            target_path = f"chapters/{target_filename}"
 
         # Write cleaned content to file for workflow
         Path("output/cleaned-content.md").write_text(cleaned_content)
@@ -130,6 +149,8 @@ def main():
 {cleaned_content[:500]}{'...' if len(cleaned_content) > 500 else ''}
 
 ---
+
+### Target: `{target_path}`
 
 ### Editorial Checklist
 
