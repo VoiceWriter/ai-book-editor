@@ -32,6 +32,7 @@ jobs:
         with:
           repository: VoiceWriter/ai-book-editor
           path: .ai-book-editor
+          token: ${{ github.token }}  # Use default token for public repo
 
       - name: Setup Python
         uses: actions/setup-python@v5
