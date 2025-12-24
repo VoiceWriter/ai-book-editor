@@ -118,3 +118,107 @@ def format_commit_message(
     msg += f"\nEditorial-type: {editorial_type}"
 
     return msg
+
+
+# === CRUD Operations for Issues ===
+
+
+def close_issue(issue, comment: Optional[str] = None) -> None:
+    """Close an issue with optional comment."""
+    if comment:
+        issue.create_comment(comment)
+    issue.edit(state="closed")
+
+
+def reopen_issue(issue) -> None:
+    """Reopen a closed issue."""
+    issue.edit(state="open")
+
+
+def add_labels(issue, labels: List[str]) -> None:
+    """Add labels to an issue."""
+    for lbl in labels:
+        issue.add_to_labels(lbl)
+
+
+def remove_labels(issue, labels: List[str]) -> None:
+    """Remove labels from an issue."""
+    for lbl in labels:
+        try:
+            issue.remove_from_labels(lbl)
+        except Exception:
+            pass  # Label might not exist
+
+
+def edit_issue(issue, title: Optional[str] = None, body: Optional[str] = None) -> None:
+    """Edit issue title and/or body."""
+    kwargs = {}
+    if title is not None:
+        kwargs["title"] = title
+    if body is not None:
+        kwargs["body"] = body
+    if kwargs:
+        issue.edit(**kwargs)
+
+
+def create_issue(repo, title: str, body: str, labels: Optional[List[str]] = None):
+    """Create a new issue."""
+    kwargs = {"title": title, "body": body}
+    if labels:
+        kwargs["labels"] = labels
+    return repo.create_issue(**kwargs)
+
+
+def add_comment(issue, body: str) -> None:
+    """Add a comment to an issue."""
+    issue.create_comment(body)
+
+
+# === CRUD Operations for Pull Requests ===
+
+
+def close_pr(pr, comment: Optional[str] = None) -> None:
+    """Close a PR without merging."""
+    if comment:
+        pr.create_issue_comment(comment)
+    pr.edit(state="closed")
+
+
+def approve_pr(pr, body: str = "LGTM") -> None:
+    """Approve a PR."""
+    pr.create_review(body=body, event="APPROVE")
+
+
+def request_changes_pr(pr, body: str) -> None:
+    """Request changes on a PR."""
+    pr.create_review(body=body, event="REQUEST_CHANGES")
+
+
+def comment_pr(pr, body: str) -> None:
+    """Add a review comment (neither approve nor request changes)."""
+    pr.create_review(body=body, event="COMMENT")
+
+
+def merge_pr(pr, commit_title: Optional[str] = None, merge_method: str = "squash") -> bool:
+    """Merge a PR. Returns True if successful."""
+    try:
+        kwargs = {"merge_method": merge_method}
+        if commit_title:
+            kwargs["commit_title"] = commit_title
+        pr.merge(**kwargs)
+        return True
+    except Exception:
+        return False
+
+
+def get_pr_for_issue(repo, issue_number: int):
+    """Find a PR that closes/references an issue, if any."""
+    # Check if there's a branch for this issue
+    try:
+        branch_name = f"voice-memo/issue-{issue_number}"
+        pulls = list(repo.get_pulls(state="open", head=f"{repo.owner.login}:{branch_name}"))
+        if pulls:
+            return pulls[0]
+    except Exception:
+        pass
+    return None

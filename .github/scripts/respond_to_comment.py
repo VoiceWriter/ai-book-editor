@@ -2,17 +2,26 @@
 """
 Respond to /ai-editor commands in issue comments.
 
-Handles:
-- /ai-editor create PR - Signals workflow to create PR
-- /ai-editor place in [file.md] - Sets target file
-- /ai-editor [anything else] - Conversational response
+This script uses LLM to infer the author's intent from natural conversation
+and executes appropriate CRUD actions on issues/PRs.
+
+Supported actions (inferred from conversation):
+- Create PR from voice memo content
+- Set target file placement
+- Close/reopen issues
+- Add/remove labels
+- Edit issue title/body
+- Create follow-up issues
+- Approve/request changes on PRs
+- Merge PRs
+- General conversational responses
 
 OUTPUTS:
 - create_pr: 'true' if PR should be created
 - target_file: path to target file for PR
 - scope: commit message scope
 - pr_body: PR description content
-- response_comment: comment to post (if not creating PR)
+- response_comment: comment to post
 - cleaned_content: content for the PR (written to file)
 """
 
@@ -24,12 +33,23 @@ from pathlib import Path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from scripts.utils.github_client import (  # noqa: E402
+    add_labels,
+    close_issue,
+    create_issue,
+    edit_issue,
     get_github_client,
     get_issue,
     get_issue_comments,
+    get_pr_for_issue,
     get_repo,
+    remove_labels,
+    reopen_issue,
 )
-from scripts.utils.llm_client import call_editorial  # noqa: E402
+from scripts.utils.llm_client import (  # noqa: E402
+    ConversationalIntent,
+    call_editorial,
+    call_editorial_structured,
+)
 
 
 def set_output(name: str, value: str):
@@ -74,6 +94,121 @@ def extract_target_file(comments: list, issue_number: int) -> tuple[str, bool]:
     return None, False
 
 
+def build_intent_prompt(issue, comments: list, comment_body: str, issue_number: int) -> str:
+    """Build prompt for inferring user intent from conversation."""
+    # Build conversation history
+    history = f"**Original transcript/issue body:**\n{issue.body}\n\n"
+    for c in comments:
+        role = "Author" if c["user"] != "github-actions[bot]" else "AI Editor"
+        history += f"**{role}:**\n{c['body'][:800]}\n\n"
+
+    # Get current issue state
+    labels = [lbl.name for lbl in issue.labels]
+    state = issue.state
+
+    return f"""You are an AI book editor assistant. Analyze this conversation and determine what action(s) the author wants you to take.
+
+## Current Issue State
+- Issue #{issue_number}: "{issue.title}"
+- State: {state}
+- Labels: {', '.join(labels) if labels else 'none'}
+
+## Conversation History
+{history}
+
+## Latest Message from Author
+{comment_body}
+
+## Available Actions
+
+For issues, you can:
+- `close` - Close the issue (with optional reason: completed, not_planned, duplicate)
+- `reopen` - Reopen a closed issue
+- `add_labels` - Add labels (specify which ones)
+- `remove_labels` - Remove labels (specify which ones)
+- `edit_title` - Change the issue title
+- `edit_body` - Update the issue body
+- `create_issue` - Create a new follow-up issue
+- `set_placement` - Set target file for PR (e.g., "chapter-03.md")
+- `create_pr` - Create a PR to integrate the content
+- `respond` - Just respond conversationally (no action)
+- `none` - No action needed
+
+## Instructions
+
+1. Infer the author's intent from their message
+2. If they want an action taken, specify it clearly
+3. If they're asking a question or chatting, use `respond` action
+4. If unclear, ask a clarifying question
+5. For destructive actions (close, edit_body), ask for confirmation unless they're very explicit
+6. Be helpful and proactive - if they say "looks good, go ahead" after discussing placement, that probably means `create_pr`
+
+Return a structured response with the action(s) to take and a natural language response to send."""
+
+
+def infer_intent(issue, comments: list, comment_body: str, issue_number: int) -> tuple[ConversationalIntent, str]:
+    """
+    Use LLM to infer user intent from conversation.
+    Returns (intent, raw_llm_response_for_logging).
+    """
+    prompt = build_intent_prompt(issue, comments, comment_body, issue_number)
+
+    intent, llm_response = call_editorial_structured(
+        prompt=prompt,
+        response_model=ConversationalIntent,
+        max_tokens=4000,
+    )
+
+    return intent, llm_response
+
+
+def execute_issue_actions(issue, repo, intent: ConversationalIntent, issue_number: int) -> list[str]:
+    """Execute issue actions and return list of actions taken."""
+    actions_taken = []
+
+    for action in intent.issue_actions:
+        if action.action == "close":
+            close_issue(issue)
+            reason = action.close_reason or "completed"
+            actions_taken.append(f"Closed issue (reason: {reason})")
+
+        elif action.action == "reopen":
+            reopen_issue(issue)
+            actions_taken.append("Reopened issue")
+
+        elif action.action == "add_labels":
+            if action.labels:
+                add_labels(issue, action.labels)
+                actions_taken.append(f"Added labels: {', '.join(action.labels)}")
+
+        elif action.action == "remove_labels":
+            if action.labels:
+                remove_labels(issue, action.labels)
+                actions_taken.append(f"Removed labels: {', '.join(action.labels)}")
+
+        elif action.action == "edit_title":
+            if action.title:
+                edit_issue(issue, title=action.title)
+                actions_taken.append(f"Updated title to: {action.title}")
+
+        elif action.action == "edit_body":
+            if action.body:
+                edit_issue(issue, body=action.body)
+                actions_taken.append("Updated issue body")
+
+        elif action.action == "create_issue":
+            if action.title:
+                new_issue = create_issue(
+                    repo,
+                    title=action.title,
+                    body=action.body or "",
+                    labels=action.labels if action.labels else None,
+                )
+                actions_taken.append(f"Created issue #{new_issue.number}: {action.title}")
+
+    return actions_taken
+
+
 def main():
     issue_number = int(os.environ.get("ISSUE_NUMBER", 0))
     comment_body = os.environ.get("COMMENT_BODY", "")
@@ -90,15 +225,116 @@ def main():
     # Ensure output directory exists
     Path("output").mkdir(exist_ok=True)
 
-    # Normalize command
+    # Check if /ai-editor is mentioned at all
+    if "/ai-editor" not in comment_body.lower():
+        # No /ai-editor mention found
+        set_output("create_pr", "false")
+        set_output("response_comment", "")
+        print("No /ai-editor command found, skipping.")
+        return
+
+    print("Inferring user intent from conversation...")
+
+    # Use LLM to infer intent
+    try:
+        intent, llm_response = infer_intent(issue, comments, comment_body, issue_number)
+        print(f"Intent inferred: confidence={intent.confidence}, understood={intent.understood}")
+        print(f"LLM usage: {llm_response.usage.format_compact()}")
+    except Exception as e:
+        print(f"Error inferring intent: {e}")
+        set_output("create_pr", "false")
+        set_output("response_comment", f"Sorry, I had trouble understanding that request. Could you rephrase? Error: {str(e)}")
+        return
+
+    # Check if we need confirmation or clarification
+    # Require confirmation for low/medium confidence (< 80% certainty)
+    needs_confirmation = (
+        intent.needs_confirmation
+        or intent.clarifying_question
+        or intent.confidence in ("low", "medium")
+    )
+
+    # Check if there are any significant actions that would need confirmation
+    has_significant_actions = any(
+        a.action in ("close", "edit_body", "create_pr", "create_issue")
+        for a in intent.issue_actions
+    )
+
+    if needs_confirmation and has_significant_actions:
+        # Build confirmation message
+        proposed_actions = []
+        for action in intent.issue_actions:
+            if action.action == "close":
+                proposed_actions.append(f"Close this issue (reason: {action.close_reason or 'completed'})")
+            elif action.action == "create_pr":
+                proposed_actions.append("Create a PR to integrate this content")
+            elif action.action == "create_issue":
+                proposed_actions.append(f"Create new issue: {action.title}")
+            elif action.action == "edit_body":
+                proposed_actions.append("Edit the issue body")
+            elif action.action == "add_labels":
+                proposed_actions.append(f"Add labels: {', '.join(action.labels)}")
+            elif action.action == "remove_labels":
+                proposed_actions.append(f"Remove labels: {', '.join(action.labels)}")
+            elif action.action == "set_placement":
+                proposed_actions.append(f"Set target file to: {action.target_file}")
+
+        if proposed_actions:
+            actions_list = "\n".join(f"- {a}" for a in proposed_actions)
+            question = intent.clarifying_question or "Should I proceed with these actions?"
+
+            confidence_note = ""
+            if intent.confidence == "low":
+                confidence_note = "\n\n*I'm not entirely sure I understood correctly. Please confirm or clarify.*"
+            elif intent.confidence == "medium":
+                confidence_note = "\n\n*Just want to make sure I got this right before proceeding.*"
+
+            response = f"""{intent.response_text}
+
+**I understood you want me to:**
+{actions_list}
+
+**{question}**{confidence_note}
+
+Reply with:
+- "yes" or "go ahead" to confirm
+- "no" or specific corrections to clarify
+
+<sub>{llm_response.usage.format_summary()}</sub>"""
+
+            set_output("create_pr", "false")
+            set_output("response_comment", response)
+            print(f"Requesting confirmation (confidence: {intent.confidence})")
+            return
+
+    # Execute non-PR actions first
+    actions_taken = execute_issue_actions(issue, repo, intent, issue_number)
+    if actions_taken:
+        print(f"Actions executed: {', '.join(actions_taken)}")
+
+    # Check for create_pr action
+    has_create_pr = any(a.action == "create_pr" for a in intent.issue_actions)
+    has_set_placement = any(a.action == "set_placement" for a in intent.issue_actions)
+
+    # Get target file from set_placement action or existing conversation
+    target_file_from_intent = None
+    for action in intent.issue_actions:
+        if action.action == "set_placement" and action.target_file:
+            target_file_from_intent = action.target_file
+
+    # Normalize command for explicit commands (backwards compatibility)
     comment_lower = comment_body.lower()
 
-    # === Handle /ai-editor create PR ===
-    if "/ai-editor create pr" in comment_lower:
+    # === Handle explicit /ai-editor create PR or inferred create_pr ===
+    if "/ai-editor create pr" in comment_lower or has_create_pr:
         print("Preparing PR creation...")
 
-        # Determine target file - REQUIRE explicit placement
-        target_filename, was_explicit = extract_target_file(comments, issue_number)
+        # Determine target file - from intent, conversation, or ask
+        target_filename = target_file_from_intent
+        was_explicit = bool(target_file_from_intent)
+
+        if not was_explicit:
+            target_filename, was_explicit = extract_target_file(comments, issue_number)
 
         if not was_explicit:
             # No explicit placement - ask the author instead of dumping to generic file
@@ -250,61 +486,34 @@ Return your response in this format:
         print(f"PR creation prepared for {target_path}")
         return
 
-    # === Handle /ai-editor place in [file] ===
-    if "/ai-editor place in" in comment_lower:
-        match = re.search(r"place in (\S+\.md)", comment_lower)
-        if match:
-            filename = match.group(1)
-            set_output("create_pr", "false")
-            set_output(
-                "response_comment",
-                f"Got it! I'll target `chapters/{filename}` when creating the PR.\n\n"
-                f"When you're ready, just say `/ai-editor create PR`.",
-            )
-            print(f"Target file set to {filename}")
-            return
+    # === Handle /ai-editor place in [file] (explicit command still supported) ===
+    if "/ai-editor place in" in comment_lower and has_set_placement:
+        # Already handled by intent inference above
+        pass
 
-    # === Handle general /ai-editor mention ===
-    if "/ai-editor" in comment_lower:
-        print("Generating conversational response...")
+    # === Use intent's response for all other cases ===
+    # Build response with any actions that were taken
+    response_parts = []
 
-        # Build conversation history
-        history = f"**Original transcript:**\n{issue.body}\n\n"
-        for c in comments:
-            role = "Author" if c["user"] != "github-actions[bot]" else "AI Editor"
-            history += f"**{role}:**\n{c['body'][:500]}\n\n"
+    if actions_taken:
+        actions_summary = "\n".join(f"- {a}" for a in actions_taken)
+        response_parts.append(f"**Actions taken:**\n{actions_summary}")
 
-        prompt = f"""You are an editorial assistant having a conversation about integrating a voice memo into a book.
+    if intent.response_text:
+        response_parts.append(intent.response_text)
 
-{history}
+    # Add usage info
+    reasoning_section = llm_response.format_editorial_explanation()
+    if reasoning_section:
+        response_parts.append(reasoning_section)
 
-**Latest message from author:**
-{comment_body}
+    response_parts.append(f"<sub>{llm_response.usage.format_summary()}</sub>")
 
-Respond helpfully and concisely. If they've:
-- Answered your questions: acknowledge and confirm understanding
-- Given direction: confirm you understand and ask if they want to proceed
-- Asked a question: answer based on your analysis
-- Said to create a PR: remind them to type "/ai-editor create PR"
+    full_response = "\n\n".join(response_parts)
 
-Keep responses brief and focused. You're a collaborator, not a lecturer."""
-
-        llm_response = call_editorial(prompt, max_tokens=2000)
-        print(f"LLM call complete: {llm_response.usage.format_compact()}")
-
-        # Add reasoning and usage info to response
-        reasoning_section = llm_response.format_editorial_explanation()
-        response_with_info = f"{llm_response.content}\n\n{reasoning_section}\n\n<sub>{llm_response.usage.format_summary()}</sub>"
-
-        set_output("create_pr", "false")
-        set_output("response_comment", response_with_info)
-        print("Conversational response generated")
-        return
-
-    # No /ai-editor mention found
     set_output("create_pr", "false")
-    set_output("response_comment", "")
-    print("No /ai-editor command found, skipping.")
+    set_output("response_comment", full_response)
+    print("Response generated from intent inference")
 
 
 if __name__ == "__main__":

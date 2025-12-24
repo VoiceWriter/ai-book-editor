@@ -212,6 +212,95 @@ class PRReviewResponse(BaseModel):
 
 
 # =============================================================================
+# CONVERSATIONAL ACTION SCHEMAS - Inferred actions from natural language
+# =============================================================================
+
+
+class IssueAction(BaseModel):
+    """An action to perform on an issue, inferred from conversation."""
+
+    model_config = ConfigDict(strict=True)
+
+    action: Literal[
+        "close",
+        "reopen",
+        "add_labels",
+        "remove_labels",
+        "edit_title",
+        "edit_body",
+        "create_issue",
+        "set_placement",
+        "create_pr",
+        "respond",
+        "none",
+    ] = Field(description="The action to take")
+
+    # Parameters for specific actions
+    labels: List[str] = Field(default_factory=list, description="Labels to add/remove")
+    title: Optional[str] = Field(default=None, description="New title (for edit_title/create_issue)")
+    body: Optional[str] = Field(default=None, description="New body content")
+    target_file: Optional[str] = Field(default=None, description="Target file for placement")
+    close_reason: Optional[str] = Field(
+        default=None, description="Reason for closing (completed, not_planned, duplicate)"
+    )
+
+
+class PRAction(BaseModel):
+    """An action to perform on a PR, inferred from conversation."""
+
+    model_config = ConfigDict(strict=True)
+
+    action: Literal[
+        "approve",
+        "request_changes",
+        "comment",
+        "close",
+        "merge",
+        "add_labels",
+        "remove_labels",
+        "respond",
+        "none",
+    ] = Field(description="The action to take")
+
+    # Parameters
+    review_body: Optional[str] = Field(default=None, description="Review comment body")
+    labels: List[str] = Field(default_factory=list, description="Labels to add/remove")
+    merge_method: Optional[Literal["merge", "squash", "rebase"]] = Field(
+        default=None, description="Merge method if merging"
+    )
+
+
+class ConversationalIntent(BaseModel):
+    """Parsed intent from a natural language comment."""
+
+    model_config = ConfigDict(strict=True)
+
+    understood: bool = Field(description="Whether the intent was understood clearly")
+    confidence: Literal["high", "medium", "low"] = Field(
+        description="Confidence in understanding"
+    )
+
+    # What actions to take
+    issue_actions: List[IssueAction] = Field(
+        default_factory=list, description="Actions to perform on issues"
+    )
+    pr_actions: List[PRAction] = Field(
+        default_factory=list, description="Actions to perform on PRs"
+    )
+
+    # Response to send
+    response_text: str = Field(
+        description="Natural language response to send to the user"
+    )
+    needs_confirmation: bool = Field(
+        default=False, description="Whether to ask for confirmation before acting"
+    )
+    clarifying_question: Optional[str] = Field(
+        default=None, description="Question to ask if intent is unclear"
+    )
+
+
+# =============================================================================
 # MODEL CAPABILITY REGISTRY
 # =============================================================================
 #
