@@ -53,25 +53,29 @@ def get_reasoning_patterns() -> dict:
     # Get rejected decisions - these are learning opportunities
     rejected = logger.get_rejected_decisions(limit=20)
     for entry in rejected:
-        patterns["rejected_decisions"].append({
-            "issue": entry["issue_number"],
-            "author_said": entry["author_message"][:200],
-            "ai_understood": entry["inferred_intent"],
-            "ai_reasoning": entry["reasoning"][:500] if entry.get("reasoning") else "",
-            "ai_proposed": entry["actions_proposed"],
-            "author_feedback": entry.get("author_feedback", ""),
-        })
+        patterns["rejected_decisions"].append(
+            {
+                "issue": entry["issue_number"],
+                "author_said": entry["author_message"][:200],
+                "ai_understood": entry["inferred_intent"],
+                "ai_reasoning": entry["reasoning"][:500] if entry.get("reasoning") else "",
+                "ai_proposed": entry["actions_proposed"],
+                "author_feedback": entry.get("author_feedback", ""),
+            }
+        )
 
     # Get recent entries to sample reasoning
     recent = logger.get_recent_entries(limit=10)
     for entry in recent:
         if entry.get("reasoning"):
-            patterns["reasoning_samples"].append({
-                "issue": entry["issue_number"],
-                "confidence": entry["confidence"],
-                "reasoning_excerpt": entry["reasoning"][:300],
-                "outcome": entry["outcome"],
-            })
+            patterns["reasoning_samples"].append(
+                {
+                    "issue": entry["issue_number"],
+                    "confidence": entry["confidence"],
+                    "reasoning_excerpt": entry["reasoning"][:300],
+                    "outcome": entry["outcome"],
+                }
+            )
 
     return patterns
 

@@ -237,7 +237,9 @@ class IssueAction(BaseModel):
 
     # Parameters for specific actions
     labels: List[str] = Field(default_factory=list, description="Labels to add/remove")
-    title: Optional[str] = Field(default=None, description="New title (for edit_title/create_issue)")
+    title: Optional[str] = Field(
+        default=None, description="New title (for edit_title/create_issue)"
+    )
     body: Optional[str] = Field(default=None, description="New body content")
     target_file: Optional[str] = Field(default=None, description="Target file for placement")
     close_reason: Optional[str] = Field(
@@ -276,9 +278,7 @@ class ConversationalIntent(BaseModel):
     model_config = ConfigDict(strict=True)
 
     understood: bool = Field(description="Whether the intent was understood clearly")
-    confidence: Literal["high", "medium", "low"] = Field(
-        description="Confidence in understanding"
-    )
+    confidence: Literal["high", "medium", "low"] = Field(description="Confidence in understanding")
 
     # What actions to take
     issue_actions: List[IssueAction] = Field(
@@ -289,9 +289,7 @@ class ConversationalIntent(BaseModel):
     )
 
     # Response to send
-    response_text: str = Field(
-        description="Natural language response to send to the user"
-    )
+    response_text: str = Field(description="Natural language response to send to the user")
     needs_confirmation: bool = Field(
         default=False, description="Whether to ask for confirmation before acting"
     )

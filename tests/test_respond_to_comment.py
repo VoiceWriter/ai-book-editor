@@ -1,9 +1,6 @@
 """Tests for respond_to_comment intent inference and action execution."""
 
-import json
-import os
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -212,7 +209,9 @@ class TestBuildIntentPromptWithEditorialContext:
         assert "Your Editorial Persona" in prompt
         assert "Margot" in prompt
 
-    def test_includes_editorial_guidelines_when_provided(self, sample_issue_with_labels, sample_comments):
+    def test_includes_editorial_guidelines_when_provided(
+        self, sample_issue_with_labels, sample_comments
+    ):
         """Should include guidelines when editorial context is provided."""
         from scripts.respond_to_comment import build_intent_prompt
 
@@ -609,19 +608,31 @@ class TestReasoningLogFile:
 
         # Log high confidence - auto executed
         logger.log_decision(
-            issue_number=1, author_message="close", conversation_summary="",
-            model_used="test", reasoning="", thinking_blocks=[],
-            inferred_intent="close", confidence="high",
-            actions_proposed=["close"], confirmation_required=False,
+            issue_number=1,
+            author_message="close",
+            conversation_summary="",
+            model_used="test",
+            reasoning="",
+            thinking_blocks=[],
+            inferred_intent="close",
+            confidence="high",
+            actions_proposed=["close"],
+            confirmation_required=False,
         )
         logger.update_outcome(issue_number=1, outcome="auto_executed")
 
         # Log low confidence - rejected
         logger.log_decision(
-            issue_number=2, author_message="maybe close?", conversation_summary="",
-            model_used="test", reasoning="", thinking_blocks=[],
-            inferred_intent="close", confidence="low",
-            actions_proposed=["close"], confirmation_required=True,
+            issue_number=2,
+            author_message="maybe close?",
+            conversation_summary="",
+            model_used="test",
+            reasoning="",
+            thinking_blocks=[],
+            inferred_intent="close",
+            confidence="low",
+            actions_proposed=["close"],
+            confirmation_required=True,
         )
         logger.update_outcome(issue_number=2, outcome="rejected")
 
@@ -699,7 +710,6 @@ class TestLearningIntegration:
 
     def test_learns_from_rejections(self, tmp_path):
         """System should identify patterns in rejected actions."""
-        from scripts.learn_from_feedback import get_reasoning_patterns
         from scripts.utils.reasoning_log import ReasoningLogger
 
         # Set up logger in tmp_path

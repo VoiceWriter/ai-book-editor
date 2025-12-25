@@ -123,6 +123,53 @@
       "type": "array",
       "items": {"type": "string"},
       "description": "Example feedback in this persona's style"
+    },
+    "discovery": {
+      "type": "object",
+      "description": "Questions this editor asks BEFORE giving feedback",
+      "properties": {
+        "philosophy": {
+          "type": "string",
+          "description": "This editor's philosophy on asking vs telling"
+        },
+        "intake_questions": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Questions to ask when first encountering new content"
+        },
+        "emotional_check": {
+          "type": "string",
+          "description": "How this editor checks on the author's emotional state"
+        },
+        "intent_questions": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Questions to understand author's intent before critiquing"
+        },
+        "socratic_prompts": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Questions that help the author see issues themselves"
+        }
+      }
+    },
+    "feedback_tiers": {
+      "type": "object",
+      "description": "How this editor prioritizes and labels feedback",
+      "properties": {
+        "critical_label": {
+          "type": "string",
+          "description": "How they label must-fix issues"
+        },
+        "recommended_label": {
+          "type": "string",
+          "description": "How they label should-fix issues"
+        },
+        "optional_label": {
+          "type": "string",
+          "description": "How they label nice-to-have suggestions"
+        }
+      }
     }
   }
 }

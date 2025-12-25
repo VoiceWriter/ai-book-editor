@@ -32,9 +32,9 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from scripts.utils.github_client import (  # noqa: E402
+from scripts.utils.github_client import (
     add_labels,
-    close_issue,
+    close_issue,  # noqa: E402
     create_issue,
     edit_issue,
     get_github_client,
@@ -45,15 +45,14 @@ from scripts.utils.github_client import (  # noqa: E402
     reopen_issue,
 )
 from scripts.utils.knowledge_base import load_editorial_context  # noqa: E402
-from scripts.utils.llm_client import (
-    ConversationalIntent,  # noqa: E402
-    LLMResponse,
-    call_editorial,
-    call_editorial_structured,
-)
-from scripts.utils.persona import (
-    format_persona_list,  # noqa: E402
-    parse_persona_command,
+from scripts.utils.llm_client import ConversationalIntent  # noqa: E402
+from scripts.utils.llm_client import LLMResponse, call_editorial, call_editorial_structured
+from scripts.utils.persona import format_persona_list, parse_persona_command  # noqa: E402
+from scripts.utils.phases import (
+    PHASE_LABELS,
+    EditorialPhase,  # noqa: E402
+    detect_emotional_state,
+    extract_knowledge_items,
 )
 from scripts.utils.reasoning_log import get_actions_logger  # noqa: E402
 
@@ -77,9 +76,7 @@ def extract_cleaned_transcript(comments: list) -> str:
     for comment in reversed(comments):
         body = comment.get("body", "")
         if "### Cleaned Transcript" in body:
-            match = re.search(
-                r"### Cleaned Transcript\s*\n(.*?)(?=###|\n---|\Z)", body, re.DOTALL
-            )
+            match = re.search(r"### Cleaned Transcript\s*\n(.*?)(?=###|\n---|\Z)", body, re.DOTALL)
             if match:
                 return match.group(1).strip()
     return None
@@ -100,6 +97,150 @@ def extract_target_file(comments: list, issue_number: int) -> tuple[str, bool]:
             return filename.split("/")[-1], True
     # No explicit placement - return None
     return None, False
+
+
+def is_in_discovery_phase(labels: list) -> bool:
+    """Check if the issue is currently in discovery phase."""
+    discovery_label = PHASE_LABELS[EditorialPhase.DISCOVERY]["name"]
+    label_names = [lbl if isinstance(lbl, str) else lbl.name for lbl in labels]
+    return discovery_label in label_names
+
+
+def is_discovery_response(comments: list, comment_body: str) -> bool:
+    """
+    Check if this comment is a response to discovery questions.
+
+    Returns True if:
+    - There's a previous comment with "Phase: Discovery"
+    - This is a substantive response (not just a command)
+    """
+    has_discovery_comment = False
+    for comment in comments:
+        body = comment.get("body", "")
+        if "Phase: Discovery" in body:
+            has_discovery_comment = True
+            break
+
+    if not has_discovery_comment:
+        return False
+
+    # Check if this is a substantive response (not just a command)
+    comment_lower = comment_body.lower().strip()
+    command_indicators = [
+        "@margot-ai-editor create pr",
+        "@margot-ai-editor use",
+        "@margot-ai-editor list",
+        "@margot-ai-editor as ",
+    ]
+
+    # If it's ONLY a command, not a discovery response
+    for indicator in command_indicators:
+        if comment_lower.startswith(indicator.lower()):
+            return False
+
+    # If it's substantive (more than just a mention), it's a response
+    cleaned = re.sub(r"@margot-ai-editor\s*", "", comment_body, flags=re.IGNORECASE)
+    return len(cleaned.strip()) > 20
+
+
+def extract_discovery_context(comments: list) -> dict:
+    """
+    Extract the full discovery context from previous comments.
+
+    Returns dict with:
+    - questions_asked: List of discovery questions
+    - author_responses: List of author's responses
+    - knowledge_items: Extracted knowledge for RAG
+    - emotional_state: Detected emotional state
+    """
+    discovery_questions = []
+    author_responses = []
+    all_knowledge_items = []
+
+    in_discovery = False
+    for comment in comments:
+        body = comment.get("body", "")
+        user = comment.get("user", "")
+
+        if "Phase: Discovery" in body:
+            in_discovery = True
+            # Extract questions from this comment
+            for line in body.split("\n"):
+                line = line.strip()
+                if line.startswith("**") and "?" in line:
+                    # Remove markdown formatting
+                    q = re.sub(r"\*\*\d+\.\*\*\s*", "", line)
+                    discovery_questions.append(q)
+
+        elif in_discovery and user != "github-actions[bot]":
+            # This is an author response
+            author_responses.append(body)
+            # Extract knowledge items
+            items = extract_knowledge_items(body)
+            all_knowledge_items.extend(items)
+
+    # Detect emotional state from responses
+    all_text = " ".join(author_responses)
+    emotional_state = detect_emotional_state(all_text)
+
+    return {
+        "questions_asked": discovery_questions,
+        "author_responses": author_responses,
+        "knowledge_items": all_knowledge_items,
+        "emotional_state": emotional_state.value if emotional_state else None,
+    }
+
+
+def build_discovery_transition_prompt(
+    discovery_context: dict,
+    original_content: str,
+    persona_id: str,
+) -> str:
+    """
+    Build the prompt for transitioning from discovery to feedback.
+
+    This prompt incorporates what was learned from discovery.
+    """
+    lines = []
+
+    lines.append("## Discovery Context")
+    lines.append("")
+    lines.append("You asked the following discovery questions:")
+    for q in discovery_context.get("questions_asked", []):
+        lines.append(f"- {q}")
+    lines.append("")
+
+    lines.append("The author responded:")
+    for r in discovery_context.get("author_responses", []):
+        lines.append(f"> {r[:500]}")
+        lines.append("")
+
+    if discovery_context.get("emotional_state"):
+        lines.append(f"**Detected emotional state:** {discovery_context['emotional_state']}")
+        lines.append("")
+
+    lines.append("## Key Learnings")
+    lines.append("")
+    lines.append("Based on the author's discovery responses, you now know:")
+    if discovery_context.get("knowledge_items"):
+        for item in discovery_context["knowledge_items"]:
+            lines.append(f"- {item['type']}: {item['content']}")
+    else:
+        lines.append("- (Extract insights from their responses)")
+    lines.append("")
+
+    lines.append("## Your Task")
+    lines.append("")
+    lines.append("Now that you understand the author's context, goals, and emotional state,")
+    lines.append("provide feedback that is tailored to what they told you.")
+    lines.append("")
+    lines.append("Remember:")
+    lines.append("- Honor what they shared in discovery")
+    lines.append("- Adjust your tone based on their emotional state")
+    lines.append("- Reference their goals when making suggestions")
+    lines.append("")
+
+    return "\n".join(lines)
 
 
 def build_intent_prompt(
@@ -240,9 +381,7 @@ def infer_intent(
         actions_proposed = []
         for action in intent.issue_actions:
             if action.action == "close":
-                actions_proposed.append(
-                    f"close (reason: {action.close_reason or 'completed'})"
-                )
+                actions_proposed.append(f"close (reason: {action.close_reason or 'completed'})")
             elif action.action == "create_pr":
                 actions_proposed.append("create PR")
             elif action.action == "add_labels":
@@ -262,8 +401,7 @@ def infer_intent(
             inferred_intent=intent.response_text[:200],
             confidence=intent.confidence,
             actions_proposed=actions_proposed,
-            confirmation_required=intent.needs_confirmation
-            or intent.confidence != "high",
+            confirmation_required=intent.needs_confirmation or intent.confidence != "high",
             tokens_used=llm_response.usage.total_tokens if llm_response.usage else 0,
             cost_usd=llm_response.usage.cost_usd if llm_response.usage else 0.0,
         )
@@ -318,9 +456,7 @@ def execute_issue_actions(
                     body=action.body or "",
                     labels=action.labels if action.labels else None,
                 )
-                actions_taken.append(
-                    f"Created issue #{new_issue.number}: {action.title}"
-                )
+                actions_taken.append(f"Created issue #{new_issue.number}: {action.title}")
 
     return actions_taken
 
@@ -340,6 +476,51 @@ def main():
 
     # Ensure output directory exists
     Path("output").mkdir(exist_ok=True)
+
+    # Get labels for phase checking
+    labels = [lbl.name for lbl in issue.labels]
+
+    # === Handle discovery response (author replying to discovery questions) ===
+    if is_in_discovery_phase(labels) and is_discovery_response(comments, comment_body):
+        print("Author responding to discovery questions, transitioning to feedback...")
+
+        # Extract discovery context
+        discovery_context = extract_discovery_context(comments)
+
+        # Save knowledge items for learning
+        if discovery_context.get("knowledge_items"):
+            knowledge_path = Path(".ai-context/discovery-knowledge.jsonl")
+            knowledge_path.parent.mkdir(parents=True, exist_ok=True)
+            import json
+
+            with open(knowledge_path, "a") as f:
+                for item in discovery_context["knowledge_items"]:
+                    item["issue_number"] = issue_number
+                    f.write(json.dumps(item) + "\n")
+            print(f"Saved {len(discovery_context['knowledge_items'])} knowledge items")
+
+        # Transition to feedback phase
+        try:
+            # Remove discovery label, add feedback label
+            remove_labels(issue, [PHASE_LABELS[EditorialPhase.DISCOVERY]["name"]])
+            add_labels(issue, [PHASE_LABELS[EditorialPhase.FEEDBACK]["name"]])
+            print("Transitioned from discovery to feedback phase")
+        except Exception as e:
+            print(f"Warning: Could not update phase labels: {e}")
+
+        # Set output to trigger feedback processing
+        set_output("phase_transition", "discovery_to_feedback")
+        set_output("trigger_feedback", "true")
+        set_output("discovery_context", json.dumps(discovery_context))
+
+        # Acknowledge the response
+        response = "Thank you for sharing that context. Let me now give you feedback that's tailored to what you've told me...\n\n---\n\n"
+        response += "*Transitioning to feedback phase...*"
+        set_output("response_comment", response)
+        set_output("create_pr", "false")
+
+        print("Discovery response processed, triggering feedback phase")
+        return
 
     # Check if @margot-ai-editor is mentioned at all (support both @ and / prefix)
     if (
@@ -390,12 +571,8 @@ def main():
 
     # Use LLM to infer intent (with editorial context)
     try:
-        intent, llm_response = infer_intent(
-            issue, comments, comment_body, issue_number, repo=repo
-        )
-        print(
-            f"Intent inferred: confidence={intent.confidence}, understood={intent.understood}"
-        )
+        intent, llm_response = infer_intent(issue, comments, comment_body, issue_number, repo=repo)
+        print(f"Intent inferred: confidence={intent.confidence}, understood={intent.understood}")
         print(f"LLM usage: {llm_response.usage.format_compact()}")
     except Exception as e:
         print(f"Error inferring intent: {e}")
@@ -443,17 +620,15 @@ def main():
 
         if proposed_actions:
             actions_list = "\n".join(f"- {a}" for a in proposed_actions)
-            question = (
-                intent.clarifying_question or "Should I proceed with these actions?"
-            )
+            question = intent.clarifying_question or "Should I proceed with these actions?"
 
             confidence_note = ""
             if intent.confidence == "low":
-                confidence_note = "\n\n*I'm not entirely sure I understood correctly. Please confirm or clarify.*"
-            elif intent.confidence == "medium":
                 confidence_note = (
-                    "\n\n*Just want to make sure I got this right before proceeding.*"
+                    "\n\n*I'm not entirely sure I understood correctly. Please confirm or clarify.*"
                 )
+            elif intent.confidence == "medium":
+                confidence_note = "\n\n*Just want to make sure I got this right before proceeding.*"
 
             response = f"""{intent.response_text}
 
@@ -543,9 +718,7 @@ Reply with:
         from scripts.utils.github_client import read_file_content
 
         existing_chapter = (
-            read_file_content(repo, target_path)
-            if target_filename != "uncategorized.md"
-            else None
+            read_file_content(repo, target_path) if target_filename != "uncategorized.md" else None
         )
 
         # Build conversation history for context
@@ -558,9 +731,7 @@ Reply with:
 
         # Build prompt sections
         persona_section = (
-            "**Editor Persona:** " + context["persona"]
-            if context.get("persona")
-            else ""
+            "**Editor Persona:** " + context["persona"] if context.get("persona") else ""
         )
         guidelines_section = (
             "**Editorial Guidelines:** " + context["guidelines"]
@@ -568,9 +739,7 @@ Reply with:
             else ""
         )
         if existing_chapter:
-            existing_section = (
-                "**Existing chapter content:**\n" + existing_chapter[:2000] + "..."
-            )
+            existing_section = "**Existing chapter content:**\n" + existing_chapter[:2000] + "..."
         else:
             existing_section = "**This will be a new file.**"
 
@@ -616,9 +785,7 @@ Return your response in this format:
                 response_text,
                 re.DOTALL,
             )
-            prepared_content = (
-                content_match.group(1).strip() if content_match else response_text
-            )
+            prepared_content = content_match.group(1).strip() if content_match else response_text
         else:
             prepared_content = response_text
 

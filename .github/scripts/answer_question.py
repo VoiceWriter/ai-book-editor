@@ -8,7 +8,6 @@ has a question about their manuscript, writing process, or editorial decisions.
 
 import os
 import sys
-from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -49,7 +48,10 @@ def main():
     # Get the question from issue body
     question = issue.body or ""
     if not question.strip():
-        set_output("response", "I don't see a question in this issue. Could you add your question to the issue body?")
+        set_output(
+            "response",
+            "I don't see a question in this issue. Could you add your question to the issue body?",
+        )
         return
 
     # Load editorial context
@@ -61,18 +63,25 @@ def main():
     if "chapter" in question.lower():
         # Try to find mentioned chapter
         import re
-        match = re.search(r'chapter[- ]?(\d+)', question.lower())
+
+        match = re.search(r"chapter[- ]?(\d+)", question.lower())
         if match:
             chapter_num = match.group(1).zfill(2)
             # Try to read the chapter
-            for pattern in [f"chapters/chapter-{chapter_num}.md", f"chapters/chapter-{chapter_num}-*.md"]:
+            for pattern in [
+                f"chapters/chapter-{chapter_num}.md",
+                f"chapters/chapter-{chapter_num}-*.md",
+            ]:
                 from scripts.utils.github_client import list_files_in_directory
+
                 chapters = list_files_in_directory(repo, "chapters")
                 for ch in chapters:
                     if f"chapter-{chapter_num}" in ch:
                         content = read_file_content(repo, f"chapters/{ch}")
                         if content:
-                            chapter_content = f"\n\n## Referenced Chapter Content ({ch})\n{content[:3000]}..."
+                            chapter_content = (
+                                f"\n\n## Referenced Chapter Content ({ch})\n{content[:3000]}..."
+                            )
                         break
 
     # Build prompt

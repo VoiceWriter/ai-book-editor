@@ -11,7 +11,6 @@ Log entries are stored in .ai-context/reasoning-log.jsonl (JSON Lines format).
 """
 
 import json
-import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional
@@ -53,9 +52,7 @@ class ReasoningLogEntry(BaseModel):
     outcome: Literal["pending", "confirmed", "rejected", "auto_executed"] = Field(
         default="pending", description="Final outcome of the decision"
     )
-    author_feedback: Optional[str] = Field(
-        default=None, description="Author's response if any"
-    )
+    author_feedback: Optional[str] = Field(default=None, description="Author's response if any")
 
     # Cost tracking
     tokens_used: int = Field(default=0, description="Total tokens used")

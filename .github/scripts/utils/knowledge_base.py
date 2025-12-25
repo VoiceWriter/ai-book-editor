@@ -134,9 +134,7 @@ def load_editorial_context(
             context["persona_object"] = None
     else:
         # No persona configured - use EDITOR_PERSONA.md or default
-        context["persona"] = (
-            read_file_content(repo, "EDITOR_PERSONA.md") or get_default_persona()
-        )
+        context["persona"] = read_file_content(repo, "EDITOR_PERSONA.md") or get_default_persona()
         context["persona_object"] = None
 
     # Core editorial files

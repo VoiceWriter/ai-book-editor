@@ -64,10 +64,28 @@ In your repository settings (Settings → Secrets and variables → Actions), ad
 ### 4. Create issue labels
 
 Create these labels in your repository:
+
+**Core labels:**
 - `voice_transcription` (blue) - Voice memo to process
 - `ai-reviewed` (green) - AI has analyzed
 - `pr-created` (purple) - PR exists for this issue
 - `awaiting-author` (yellow) - Blocked on author input
+- `ai-question` (blue) - Question for the editor
+- `whole-book` (purple) - Full manuscript analysis
+- `quick-review` (orange) - Skip discovery, fast feedback
+
+**Phase labels:**
+- `phase:discovery` (purple) - Editor asking questions first
+- `phase:feedback` (blue) - Feedback being provided
+- `phase:revision` (yellow) - Author revising
+- `phase:hold` (light purple) - On hold for reflection
+- `phase:complete` (green) - Editorial work complete
+
+**Persona labels (optional):**
+- `persona:margot` - Sharp, market-aware
+- `persona:sage` - Nurturing, encouraging
+- `persona:blueprint` - Structure-focused
+- `persona:the-axe` - Brutal cutting
 
 ### 5. Submit a voice memo
 
@@ -85,15 +103,48 @@ Use these commands in issue comments:
 
 ## Workflows
 
-### Voice-to-PR Pipeline
+### Voice-to-PR Pipeline (with Discovery)
 ```
-Voice memo -> Issue -> AI Analysis -> Discussion -> PR -> Review -> Merge
+Voice memo → Issue → Discovery Questions → Author Responds → Tailored Feedback → Discussion → PR → Review → Merge
 ```
+
+**The Discovery Phase:**
+1. Author submits voice transcript
+2. Editor asks 2-4 personalized questions (based on persona)
+3. Author responds with context, goals, emotional state
+4. Editor provides feedback tailored to what they learned
+5. Responses feed into knowledge base for future context
+
+**Skip Discovery:** Check "Skip discovery" in the issue template or add `quick-review` label.
 
 ### Human Writing Pipeline
 ```
 Write in VS Code -> Push branch -> AI reviews PR -> Iterate -> Merge
 ```
+
+### Whole Book Analysis
+```
+Add `whole-book` label → AI reads all chapters → Cross-chapter analysis
+```
+
+Detects:
+- Thematic threads across chapters
+- Consistency issues (character, timeline, terminology)
+- Repetition and redundancy
+- Promise/payoff tracking
+- Structural recommendations
+
+## Editorial Phases
+
+Issues progress through phases tracked by labels:
+
+| Phase | Label | Description |
+|-------|-------|-------------|
+| Discovery | `phase:discovery` | Editor asking questions |
+| Feedback | `phase:feedback` | Editorial analysis provided |
+| Revision | `phase:revision` | Author revising based on feedback |
+| Hold | `phase:hold` | On hold for author reflection |
+| Complete | `phase:complete` | Ready for publication |
 
 ## Configuration
 

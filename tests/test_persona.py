@@ -9,13 +9,25 @@ import pytest
 # Add scripts path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / ".github" / "scripts"))
 
-from utils.persona import (Persona, PersonaRules, PersonaTraits,  # noqa: E402
-                           PersonaVoice, format_persona_for_prompt,
-                           format_persona_list, get_default_persona,
-                           get_persona_from_env, get_persona_from_labels,
-                           get_personas_dir, list_available_personas,
-                           load_persona, load_persona_config,
-                           parse_persona_command, resolve_persona)
+from utils.persona import (  # noqa: E402
+    Persona,
+    PersonaRules,
+    PersonaTraits,
+    PersonaVoice,
+    format_discovery_prompt,
+    format_feedback_with_tiers,
+    format_persona_for_prompt,
+    format_persona_list,
+    get_default_persona,
+    get_persona_from_env,
+    get_persona_from_labels,
+    get_personas_dir,
+    list_available_personas,
+    load_persona,
+    load_persona_config,
+    parse_persona_command,
+    resolve_persona,
+)
 
 
 class TestPersonaTraits:
@@ -227,18 +239,14 @@ class TestLoadPersonaConfig:
     def test_load_config_with_persona(self):
         """Test loading config that has a persona."""
         mock_repo = MagicMock()
-        with patch(
-            "utils.github_client.read_file_content", return_value="persona: margot"
-        ):
+        with patch("utils.github_client.read_file_content", return_value="persona: margot"):
             persona_id = load_persona_config(mock_repo)
         assert persona_id == "margot"
 
     def test_load_config_without_persona(self):
         """Test loading config without persona key."""
         mock_repo = MagicMock()
-        with patch(
-            "utils.github_client.read_file_content", return_value="other_key: value"
-        ):
+        with patch("utils.github_client.read_file_content", return_value="other_key: value"):
             persona_id = load_persona_config(mock_repo)
         assert persona_id is None
 
@@ -332,17 +340,13 @@ class TestParsePersonaCommand:
 
     def test_list_personas_command(self):
         """Test @margot-ai-editor list personas command."""
-        persona_id, cmd_type, remaining = parse_persona_command(
-            "@margot-ai-editor list personas"
-        )
+        persona_id, cmd_type, remaining = parse_persona_command("@margot-ai-editor list personas")
         assert persona_id is None
         assert cmd_type == "list"
 
     def test_no_command(self):
         """Test regular comment without persona command."""
-        persona_id, cmd_type, remaining = parse_persona_command(
-            "@margot-ai-editor review this"
-        )
+        persona_id, cmd_type, remaining = parse_persona_command("@margot-ai-editor review this")
         assert persona_id is None
         assert cmd_type is None
         assert remaining == "@margot-ai-editor review this"
@@ -413,9 +417,7 @@ class TestResolvePersona:
     def test_command_highest_priority(self):
         """Test that comment command has highest priority."""
         labels = ["persona:sage"]
-        persona_id, source = resolve_persona(
-            labels=labels, comment="@margot-ai-editor use the-axe"
-        )
+        persona_id, source = resolve_persona(labels=labels, comment="@margot-ai-editor use the-axe")
         assert persona_id == "the-axe"
         assert source == "command"
 
@@ -490,3 +492,156 @@ class TestFormatPersonaWithColleagues:
         formatted = format_persona_for_prompt(persona)
         assert "You ARE" in formatted
         assert "Never break character" in formatted
+
+
+class TestPersonaDiscovery:
+    """Tests for discovery questions in personas."""
+
+    def test_all_personas_have_discovery(self):
+        """Test that all personas have discovery sections."""
+        for persona_id in list_available_personas():
+            persona = load_persona(persona_id)
+            assert persona.discovery is not None, f"{persona_id} missing discovery"
+
+    def test_discovery_has_intake_questions(self):
+        """Test that personas have intake questions."""
+        persona = load_persona("margot")
+        assert len(persona.discovery.intake_questions) >= 2
+
+    def test_discovery_has_socratic_prompts(self):
+        """Test that personas have Socratic prompts."""
+        persona = load_persona("sage")
+        assert len(persona.discovery.socratic_prompts) >= 2
+
+    def test_discovery_has_philosophy(self):
+        """Test that personas have discovery philosophy."""
+        persona = load_persona("blueprint")
+        assert persona.discovery.philosophy
+        assert len(persona.discovery.philosophy) > 10
+
+    def test_discovery_questions_match_personality(self):
+        """Test that discovery questions match persona personality."""
+        # The Axe should have direct, harsh questions
+        axe = load_persona("the-axe")
+        questions = " ".join(axe.discovery.intake_questions)
+        assert "cut" in questions.lower() or "willing" in questions.lower()
+
+        # Sage should have gentle, nurturing questions
+        sage = load_persona("sage")
+        questions = " ".join(sage.discovery.intake_questions)
+        assert "feeling" in questions.lower() or "support" in questions.lower()
+
+
+class TestPersonaFeedbackTiers:
+    """Tests for feedback tier labels in personas."""
+
+    def test_all_personas_have_feedback_tiers(self):
+        """Test that all personas have feedback tier labels."""
+        for persona_id in list_available_personas():
+            persona = load_persona(persona_id)
+            assert persona.feedback_tiers is not None, f"{persona_id} missing feedback_tiers"
+
+    def test_feedback_tiers_have_all_levels(self):
+        """Test that feedback tiers have all three levels."""
+        persona = load_persona("margot")
+        assert persona.feedback_tiers.critical_label
+        assert persona.feedback_tiers.recommended_label
+        assert persona.feedback_tiers.optional_label
+
+    def test_feedback_tiers_match_personality(self):
+        """Test that tier labels match persona personality."""
+        # The Axe should have blunt labels
+        axe = load_persona("the-axe")
+        assert "cut" in axe.feedback_tiers.critical_label.lower()
+
+        # Cheerleader should have positive labels
+        cheerleader = load_persona("cheerleader")
+        assert "!" in cheerleader.feedback_tiers.critical_label
+
+
+class TestFormatDiscoveryPrompt:
+    """Tests for format_discovery_prompt function."""
+
+    def test_includes_persona_name(self):
+        """Test that discovery prompt includes persona name."""
+        persona = load_persona("margot")
+        formatted = format_discovery_prompt(persona)
+        assert "Margot" in formatted
+        assert "Discovery Mode" in formatted
+
+    def test_includes_questions(self):
+        """Test that discovery prompt includes question types."""
+        persona = load_persona("sage")
+        formatted = format_discovery_prompt(persona)
+        assert "Intake questions" in formatted
+        assert "Socratic prompts" in formatted
+
+    def test_includes_emotional_state_guidance(self):
+        """Test that emotional state affects prompt."""
+        persona = load_persona("sage")
+        formatted = format_discovery_prompt(persona, emotional_state="vulnerable")
+        assert "vulnerable" in formatted
+        assert "Emotional check-in" in formatted or "emotional" in formatted.lower()
+
+    def test_includes_task_instructions(self):
+        """Test that prompt includes task instructions."""
+        persona = load_persona("margot")
+        formatted = format_discovery_prompt(persona)
+        assert "Read the content" in formatted
+        assert "Choose 2-4 questions" in formatted
+
+
+class TestFormatFeedbackWithTiers:
+    """Tests for format_feedback_with_tiers function."""
+
+    def test_formats_all_tiers(self):
+        """Test that all feedback tiers are formatted."""
+        persona = load_persona("margot")
+        items = [
+            {"tier": "critical", "content": "Fix this structure issue"},
+            {"tier": "recommended", "content": "Consider tightening the prose"},
+            {"tier": "optional", "content": "You might try a different metaphor"},
+        ]
+        formatted = format_feedback_with_tiers(persona, items)
+        assert persona.feedback_tiers.critical_label in formatted
+        assert "Fix this structure issue" in formatted
+
+    def test_groups_by_tier(self):
+        """Test that items are grouped by tier."""
+        persona = load_persona("sage")
+        items = [
+            {"tier": "critical", "content": "Item 1"},
+            {"tier": "optional", "content": "Item 2"},
+            {"tier": "critical", "content": "Item 3"},
+        ]
+        formatted = format_feedback_with_tiers(persona, items)
+        # Both critical items should appear before optional
+        critical_pos = formatted.find("Item 1")
+        optional_pos = formatted.find("Item 2")
+        assert critical_pos < optional_pos
+
+    def test_handles_missing_tiers(self):
+        """Test that missing tiers are handled gracefully."""
+        persona = load_persona("blueprint")
+        items = [{"tier": "critical", "content": "Only critical item"}]
+        formatted = format_feedback_with_tiers(persona, items)
+        assert "Only critical item" in formatted
+        # Should not error on missing recommended/optional
+
+
+class TestPersonaDiscoveryIntegration:
+    """Integration tests for persona discovery in prompts."""
+
+    def test_full_prompt_includes_discovery(self):
+        """Test that full persona prompt includes discovery section."""
+        persona = load_persona("margot")
+        formatted = format_persona_for_prompt(persona)
+        assert "Discovery Approach" in formatted
+        assert "ASK questions" in formatted
+
+    def test_full_prompt_includes_feedback_tiers(self):
+        """Test that full persona prompt includes feedback tiers."""
+        persona = load_persona("margot")
+        formatted = format_persona_for_prompt(persona)
+        assert "Feedback Priority Labels" in formatted
+        assert persona.feedback_tiers.critical_label in formatted

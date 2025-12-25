@@ -1,0 +1,88 @@
+name: Whole Book Analysis
+
+on:
+  issues:
+    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number to post results to (optional)'
+        required: false
+        type: number
+
+jobs:
+  analyze:
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.event.label.name == 'whole-book'
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Generate App Token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.AI_EDITOR_APP_ID }}
+          private-key: ${{ secrets.AI_EDITOR_PRIVATE_KEY }}
+
+      - name: Checkout book repository
+        uses: actions/checkout@v4
+
+      - name: Checkout AI Book Editor action
+        uses: actions/checkout@v4
+        with:
+          repository: VoiceWriter/ai-book-editor
+          path: .ai-book-editor
+          token: ${{ github.token }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('.ai-book-editor/requirements.txt') }}
+
+      - name: Install dependencies
+        run: pip install -r .ai-book-editor/requirements.txt
+
+      - name: Run whole-book analysis
+        id: analyze
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number || 0 }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          EDITOR_PERSONA: ${{ vars.EDITOR_PERSONA }}
+        run: |
+          cd .ai-book-editor
+          python .github/scripts/analyze_whole_book.py
+
+      - name: Post analysis to issue
+        if: github.event.issue.number || inputs.issue_number
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          issue-number: ${{ github.event.issue.number || inputs.issue_number }}
+          body-path: .ai-book-editor/output/whole-book-analysis.md
+
+      - name: Create analysis issue if no target
+        if: "!github.event.issue.number && !inputs.issue_number"
+        uses: peter-evans/create-issue-from-file@v5
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          title: "Whole Book Analysis"
+          content-filepath: .ai-book-editor/output/whole-book-analysis.md
+          labels: |
+            whole-book
+            ai-reviewed
+
+      - name: Upload analysis artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: whole-book-analysis
+          path: .ai-book-editor/output/whole-book-analysis.md

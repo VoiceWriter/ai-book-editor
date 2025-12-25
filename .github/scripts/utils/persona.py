@@ -20,28 +20,16 @@ class PersonaTraits(BaseModel):
     model_config = ConfigDict(strict=True, frozen=True)
 
     directness: int = Field(ge=0, le=10, description="0=diplomatic, 10=blunt")
-    ruthlessness: int = Field(
-        ge=0, le=10, description="0=preserve everything, 10=cut ruthlessly"
-    )
+    ruthlessness: int = Field(ge=0, le=10, description="0=preserve everything, 10=cut ruthlessly")
     voice_protection: int = Field(
         ge=0, le=10, description="0=polish to standard, 10=protect quirks"
     )
-    structure_focus: int = Field(
-        ge=0, le=10, description="0=organic flow, 10=strict arcs"
-    )
-    market_awareness: int = Field(
-        ge=0, le=10, description="0=art for art's sake, 10=commercial"
-    )
-    praise_frequency: int = Field(
-        ge=0, le=10, description="0=critique only, 10=celebrate often"
-    )
+    structure_focus: int = Field(ge=0, le=10, description="0=organic flow, 10=strict arcs")
+    market_awareness: int = Field(ge=0, le=10, description="0=art for art's sake, 10=commercial")
+    praise_frequency: int = Field(ge=0, le=10, description="0=critique only, 10=celebrate often")
     formality: int = Field(ge=0, le=10, description="0=casual/profane, 10=academic")
-    challenge_level: int = Field(
-        ge=0, le=10, description="0=gentle suggestions, 10=hard questions"
-    )
-    specificity: int = Field(
-        ge=0, le=10, description="0=general direction, 10=line-level"
-    )
+    challenge_level: int = Field(ge=0, le=10, description="0=gentle suggestions, 10=hard questions")
+    specificity: int = Field(ge=0, le=10, description="0=general direction, 10=line-level")
 
 
 class PersonaRules(BaseModel):
@@ -49,12 +37,8 @@ class PersonaRules(BaseModel):
 
     model_config = ConfigDict(strict=True)
 
-    always: List[str] = Field(
-        default_factory=list, description="Things this editor always does"
-    )
-    never: List[str] = Field(
-        default_factory=list, description="Things this editor never does"
-    )
+    always: List[str] = Field(default_factory=list, description="Things this editor always does")
+    never: List[str] = Field(default_factory=list, description="Things this editor never does")
 
 
 class PersonaVoice(BaseModel):
@@ -63,10 +47,54 @@ class PersonaVoice(BaseModel):
     model_config = ConfigDict(strict=True)
 
     tone: str = Field(description="Description of communication style")
-    phrases: List[str] = Field(
-        default_factory=list, description="Characteristic things they say"
-    )
+    phrases: List[str] = Field(default_factory=list, description="Characteristic things they say")
     avoids: List[str] = Field(default_factory=list, description="Things they don't say")
+
+
+class PersonaDiscovery(BaseModel):
+    """Discovery questions this persona asks BEFORE giving feedback."""
+
+    model_config = ConfigDict(strict=True)
+
+    philosophy: str = Field(
+        default="Ask before you tell.",
+        description="This editor's philosophy on asking vs telling",
+    )
+    intake_questions: List[str] = Field(
+        default_factory=list,
+        description="Questions to ask when first encountering new content",
+    )
+    emotional_check: str = Field(
+        default="How are you feeling about this piece?",
+        description="How this editor checks on the author's emotional state",
+    )
+    intent_questions: List[str] = Field(
+        default_factory=list,
+        description="Questions to understand author's intent before critiquing",
+    )
+    socratic_prompts: List[str] = Field(
+        default_factory=list,
+        description="Questions that help the author see issues themselves",
+    )
+
+
+class PersonaFeedbackTiers(BaseModel):
+    """How this persona labels feedback priority."""
+
+    model_config = ConfigDict(strict=True)
+
+    critical_label: str = Field(
+        default="CRITICAL",
+        description="How they label must-fix issues",
+    )
+    recommended_label: str = Field(
+        default="RECOMMENDED",
+        description="How they label should-fix issues",
+    )
+    optional_label: str = Field(
+        default="OPTIONAL",
+        description="How they label nice-to-have suggestions",
+    )
 
 
 class Persona(BaseModel):
@@ -81,8 +109,12 @@ class Persona(BaseModel):
     traits: PersonaTraits
     rules: PersonaRules
     voice: PersonaVoice
-    sample_feedback: List[str] = Field(
-        default_factory=list, description="Example feedback"
+    sample_feedback: List[str] = Field(default_factory=list, description="Example feedback")
+    discovery: Optional[PersonaDiscovery] = Field(
+        default=None, description="Discovery questions for ask-first approach"
+    )
+    feedback_tiers: Optional[PersonaFeedbackTiers] = Field(
+        default=None, description="How this persona labels feedback priority"
     )
 
 
@@ -201,13 +233,9 @@ def format_persona_for_prompt(persona: Persona) -> str:
     # Identity and embodiment instruction
     lines.append(f"# You ARE {persona.name}")
     lines.append("")
-    lines.append(
-        f"You are not an AI pretending to be an editor. You ARE {persona.name}."
-    )
+    lines.append(f"You are not an AI pretending to be an editor. You ARE {persona.name}.")
     lines.append(f"Speak in first person. Have opinions. Be {persona.tagline.lower()}")
-    lines.append(
-        "Never break character. Never refer to yourself as an AI or assistant."
-    )
+    lines.append("Never break character. Never refer to yourself as an AI or assistant.")
     lines.append("")
     lines.append(f"*{persona.tagline}*")
     lines.append("")
@@ -245,9 +273,7 @@ def format_persona_for_prompt(persona: Persona) -> str:
             desc = high_desc
         else:
             desc = f"Balance of {low_desc.lower()} and {high_desc.lower()}"
-        lines.append(
-            f"- **{trait_name.replace('_', ' ').title()}** ({value}/10): {desc}"
-        )
+        lines.append(f"- **{trait_name.replace('_', ' ').title()}** ({value}/10): {desc}")
 
     lines.append("")
 
@@ -290,22 +316,173 @@ def format_persona_for_prompt(persona: Persona) -> str:
             lines.append(f'*Example {i}:* "{feedback}"')
             lines.append("")
 
+    # Discovery approach (if available)
+    if persona.discovery:
+        lines.append("## Your Discovery Approach")
+        lines.append("")
+        lines.append(f"*{persona.discovery.philosophy}*")
+        lines.append("")
+        lines.append("Before giving feedback, you ASK questions to understand:")
+        lines.append("- Where the author is emotionally")
+        lines.append("- What they're trying to achieve")
+        lines.append("- What feedback would actually help them")
+        lines.append("")
+
+    # Feedback tiers (if available)
+    if persona.feedback_tiers:
+        lines.append("## Feedback Priority Labels")
+        lines.append("")
+        lines.append(
+            f"- **{persona.feedback_tiers.critical_label}**: Must address before publishing"
+        )
+        lines.append(f"- **{persona.feedback_tiers.recommended_label}**: Would strengthen the work")
+        lines.append(
+            f"- **{persona.feedback_tiers.optional_label}**: Style preference, take or leave"
+        )
+        lines.append("")
+
     # Colleagues for second opinions
     lines.append("## Your Colleagues")
     lines.append("")
-    lines.append(
-        "If the author needs a different perspective, you can suggest they consult:"
-    )
+    lines.append("If the author needs a different perspective, you can suggest they consult:")
     lines.append("")
     lines.append(get_other_personas_summary(persona.id))
     lines.append("")
-    lines.append(
-        "You may suggest a colleague when their expertise better fits the author's needs."
-    )
+    lines.append("You may suggest a colleague when their expertise better fits the author's needs.")
     lines.append(
         "For example: 'For the structural issues, you might want Maxwell Blueprint's take.'"
     )
     lines.append("")
+
+    return "\n".join(lines)
+
+
+def format_discovery_prompt(persona: Persona, emotional_state: Optional[str] = None) -> str:
+    """
+    Format a discovery-specific prompt for the persona.
+
+    This is used when entering the discovery phase to generate
+    personalized questions for the author.
+
+    Args:
+        persona: The persona to use
+        emotional_state: Detected emotional state (if any)
+
+    Returns:
+        Formatted discovery prompt text
+    """
+    lines = []
+
+    lines.append(f"# {persona.name} — Discovery Mode")
+    lines.append("")
+    lines.append("You are in DISCOVERY mode. Your job is to ASK, not TELL.")
+    lines.append("")
+
+    if persona.discovery:
+        lines.append("## Your Philosophy")
+        lines.append("")
+        lines.append(persona.discovery.philosophy)
+        lines.append("")
+
+        # Adjust for emotional state
+        if emotional_state:
+            lines.append(f"**Detected emotional state:** {emotional_state}")
+            lines.append("")
+            if emotional_state in ["vulnerable", "frustrated", "blocked"]:
+                lines.append("**Emotional check-in:**")
+                lines.append(persona.discovery.emotional_check)
+                lines.append("")
+
+        lines.append("## Questions You Might Ask")
+        lines.append("")
+
+        lines.append("**Intake questions** (understand goals and context):")
+        for q in persona.discovery.intake_questions:
+            lines.append(f"- {q}")
+        lines.append("")
+
+        lines.append("**Intent questions** (understand their choices):")
+        for q in persona.discovery.intent_questions:
+            lines.append(f"- {q}")
+        lines.append("")
+
+        lines.append("**Socratic prompts** (help them see issues themselves):")
+        for q in persona.discovery.socratic_prompts:
+            lines.append(f"- {q}")
+        lines.append("")
+
+    lines.append("## Your Task")
+    lines.append("")
+    lines.append("1. Read the content carefully")
+    lines.append("2. Choose 2-4 questions most relevant to THIS specific piece")
+    lines.append("3. Ask them in YOUR voice (stay in character as " + persona.name + ")")
+    lines.append("4. Make the author feel heard, not interrogated")
+    lines.append("5. Wait for their response before giving any feedback")
+    lines.append("")
+    lines.append("Remember: Great editors ask before they tell.")
+    lines.append("")
+
+    return "\n".join(lines)
+
+
+def format_feedback_with_tiers(
+    persona: Persona,
+    feedback_items: List[dict],
+) -> str:
+    """
+    Format feedback using the persona's tier labels.
+
+    Args:
+        persona: The persona providing feedback
+        feedback_items: List of dicts with 'tier' (critical/recommended/optional)
+                       and 'content' keys
+
+    Returns:
+        Formatted feedback with tier labels
+    """
+    if not persona.feedback_tiers:
+        # Default tiers
+        labels = {
+            "critical": "CRITICAL",
+            "recommended": "RECOMMENDED",
+            "optional": "OPTIONAL",
+        }
+    else:
+        labels = {
+            "critical": persona.feedback_tiers.critical_label,
+            "recommended": persona.feedback_tiers.recommended_label,
+            "optional": persona.feedback_tiers.optional_label,
+        }
+
+    lines = []
+
+    # Group by tier
+    by_tier = {"critical": [], "recommended": [], "optional": []}
+    for item in feedback_items:
+        tier = item.get("tier", "optional")
+        if tier in by_tier:
+            by_tier[tier].append(item["content"])
+
+    if by_tier["critical"]:
+        lines.append(f"### {labels['critical']}")
+        lines.append("")
+        for item in by_tier["critical"]:
+            lines.append(f"- {item}")
+        lines.append("")
+
+    if by_tier["recommended"]:
+        lines.append(f"### {labels['recommended']}")
+        lines.append("")
+        for item in by_tier["recommended"]:
+            lines.append(f"- {item}")
+        lines.append("")
+
+    if by_tier["optional"]:
+        lines.append(f"### {labels['optional']}")
+        lines.append("")
+        for item in by_tier["optional"]:
+            lines.append(f"- {item}")
+        lines.append("")
 
     return "\n".join(lines)
 
@@ -324,9 +501,7 @@ def get_persona_from_env() -> Optional[str]:
         available = list_available_personas()
         if persona_id in available:
             return persona_id
-        print(
-            f"Warning: EDITOR_PERSONA='{persona_id}' not found. Available: {available}"
-        )
+        print(f"Warning: EDITOR_PERSONA='{persona_id}' not found. Available: {available}")
     return None
 
 
@@ -346,17 +521,13 @@ def get_persona_from_labels(labels: list) -> Optional[str]:
 
     for label in labels:
         # Handle both string labels and objects with .name
-        label_name = (
-            label if isinstance(label, str) else getattr(label, "name", str(label))
-        )
+        label_name = label if isinstance(label, str) else getattr(label, "name", str(label))
 
         if label_name.startswith(PERSONA_LABEL_PREFIX):
             persona_id = label_name[len(PERSONA_LABEL_PREFIX) :]
             if persona_id in available:
                 return persona_id
-            print(
-                f"Warning: Label '{label_name}' persona not found. Available: {available}"
-            )
+            print(f"Warning: Label '{label_name}' persona not found. Available: {available}")
 
     return None
 
