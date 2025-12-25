@@ -1,298 +1,180 @@
 # AI Book Editor
 
-A GitHub-native AI editorial system for transforming voice memos and written fragments into polished books.
+**Write your book. The AI handles the rest.**
 
-## Architecture
-
-100% GitHub-native. No external servers, no databases. Just:
-- **GitHub Issues** - Input, discussion, state management
-- **GitHub Actions** - AI processing via LLM API
-- **GitHub PRs** - Editorial output, traceability
-- **GitHub repo** - Book content, knowledge base
-
-## Quick Start
-
-### 1. Set up your repository
-
-Copy these files to your book repository:
-- `.github/workflows/` - Example workflow files (see below)
-- `.ai-context/` - Knowledge base (customize for your book)
-- `EDITOR_PERSONA.md` - AI personality
-- `EDITORIAL_GUIDELINES.md` - Editorial rules
-- `GLOSSARY.md` - Terminology
-
-**Or use the action directly:**
-
-```yaml
-- uses: VoiceWriter/ai-book-editor@main
-  with:
-    anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
-    github-token: ${{ secrets.GITHUB_TOKEN }}
-    mode: process-transcription
-    issue-number: ${{ github.event.issue.number }}
-```
-
-### 2. Create a GitHub App (for bot identity)
-
-All AI actions will appear as `margot-ai-editor[bot]` instead of your personal account.
-
-1. Go to **Settings → Developer settings → GitHub Apps → New GitHub App**
-2. Fill in:
-   - **Name:** `margot-ai-editor` (or your preferred name)
-   - **Homepage URL:** Your repository URL
-   - **Callback URL:** `https://example.com` (not used)
-   - **Webhook:** Uncheck "Active" (not used)
-3. **Permissions:**
-   - **Repository permissions:**
-     - Contents: Read & write
-     - Issues: Read & write
-     - Pull requests: Read & write
-     - Metadata: Read-only
-4. **Subscribe to events:** Leave all unchecked (GitHub Actions handles events)
-5. Click **Create GitHub App**
-6. Note the **App ID** from the app settings page
-7. Scroll down and click **Generate a private key** - save the `.pem` file
-8. Go to **Install App** (left sidebar) and install it on your book repository
-
-### 3. Add secrets
-
-In your repository settings (Settings → Secrets and variables → Actions), add:
-- `AI_EDITOR_APP_ID` - The App ID from step 6 above
-- `AI_EDITOR_PRIVATE_KEY` - Contents of the `.pem` file from step 7
-- `ANTHROPIC_API_KEY` - Your Claude API key (or appropriate key for your model)
-
-### 4. Create issue labels
-
-Create these labels in your repository:
-
-**Core labels:**
-- `voice_transcription` (blue) - Voice memo to process
-- `ai-reviewed` (green) - AI has analyzed
-- `pr-created` (purple) - PR exists for this issue
-- `awaiting-author` (yellow) - Blocked on author input
-- `ai-question` (blue) - Question for the editor
-- `whole-book` (purple) - Full manuscript analysis
-- `quick-review` (orange) - Skip discovery, fast feedback
-
-**Phase labels:**
-- `phase:discovery` (purple) - Editor asking questions first
-- `phase:feedback` (blue) - Feedback being provided
-- `phase:revision` (yellow) - Author revising
-- `phase:hold` (light purple) - On hold for reflection
-- `phase:complete` (green) - Editorial work complete
-
-**Persona labels (optional):**
-- `persona:margot` - Sharp, market-aware
-- `persona:sage` - Nurturing, encouraging
-- `persona:blueprint` - Structure-focused
-- `persona:the-axe` - Brutal cutting
-
-### 5. Submit a voice memo
-
-1. Create a new issue using the "Voice Transcription" template
-2. Paste your transcript in the issue body
-3. Add the `voice_transcription` label
-4. The AI will analyze and comment within minutes
-
-### 6. Interact with the AI
-
-Use these commands in issue comments:
-- `@margot-ai-editor create PR` - Create a PR with the cleaned content
-- `@margot-ai-editor place in chapter-name.md` - Specify target file
-- `@margot-ai-editor [any question]` - Have a conversation
+Talk into your phone, create a GitHub issue, and get editorial feedback in minutes. No setup forms, no configuration wizards. Just write.
 
 ## How It Works
 
-### Just Start Writing
-
-**No setup required.** Submit your first voice memo, and the AI handles everything:
-
-1. **First submission?** The AI welcomes you, asks a few questions about your project, and gives feedback
-2. **The AI remembers.** Your answers are saved to `.ai-context/book.yaml` via PR (you approve it)
-3. **Feedback adapts.** As your project matures, the AI adjusts its approach automatically
-
 ```
-Day 1: Submit voice memo → AI welcomes you, asks about your project → Encouraging feedback
-Day 30: Submit chapter 5 → AI notices patterns, tracks consistency → Substantive feedback
-Day 90: All chapters drafted → AI suggests revision phase → Rigorous structural feedback
-Day 120: Polish mode → AI focuses on line editing → Detailed prose feedback
+📱 Record voice memo → 📝 Paste in GitHub Issue → 🤖 AI gives feedback → 📖 Merge to book
 ```
 
-### Book Project Lifecycle
+**That's it.** The AI:
+- Cleans up your transcript (removes ums, fixes punctuation)
+- Analyzes what you're saying and suggests where it fits
+- Adjusts feedback based on how far along your book is
+- Learns your preferences over time
 
-The AI automatically detects where you are and adjusts:
+## 5-Minute Quickstart
 
-| Phase | What AI Does | Criticism Level |
-|-------|--------------|-----------------|
-| **New** | Celebrates ideas, asks about vision, builds momentum | Minimal |
-| **Drafting** | Balances encouragement with substance, tracks themes | Moderate |
-| **Revising** | Structural critique, identifies gaps, pushes for clarity | High |
-| **Polishing** | Line editing, grammar, style consistency | Detailed |
+### 1. Use this template (or fork this repo)
 
-**Override anytime:** Just say `@margot-ai-editor be harsher` or `@margot-ai-editor I'm ready to revise`.
+Click **"Use this template"** to create your book repository.
 
-### Configuration via Pull Requests
+### 2. Add your API key
 
-The AI never changes your configuration without permission:
+Go to **Settings → Secrets → Actions** and add:
+- `ANTHROPIC_API_KEY` - Your Claude API key
 
-1. AI learns something about your project (from conversation)
-2. AI creates a PR updating `.ai-context/book.yaml`
-3. You review and merge (or close if wrong)
+That's it for secrets. The workflows use the built-in `GITHUB_TOKEN`.
 
-Your config lives in git. It's version-controlled, reviewable, and you have final say.
+### 3. Start writing
 
-## Workflows
+Create a new issue with the `voice_transcription` label:
 
-### Voice-to-PR Pipeline
-```
-Voice memo → Issue → Feedback (with optional discovery) → Discussion → PR → Review → Merge
-```
+```markdown
+Title: Voice memo - morning thoughts on chapter 1
 
-**Discovery (optional):**
-- Editor can ask 2-4 questions before giving feedback
-- You can skip with `quick-review` label or by saying "just review this"
-- Responses feed into knowledge base for future context
-
-### Human Writing Pipeline
-```
-Write in VS Code → Push branch → AI reviews PR → Iterate → Merge
+So I've been thinking about how to open this book, and I think we should
+start with a story. Like, a real example of someone who struggled with
+this before they found the solution. You know, hook the reader right away...
 ```
 
-### Whole Book Analysis
+Within minutes, you'll get a comment with:
+- ✨ Cleaned transcript
+- 📍 Suggested placement
+- 💡 Editorial feedback
+- ❓ Questions to help clarify your intent
+
+### 4. Interact naturally
+
+Reply to the AI like you'd reply to a human editor:
+
 ```
-Add `whole-book` label → AI reads all chapters → Cross-chapter analysis
-```
+@margot-ai-editor I want this in chapter 1, near the beginning
 
-Detects: thematic threads, consistency issues, repetition, promise/payoff tracking
+@margot-ai-editor actually, what if we made this the book's opening?
 
-## Commands
-
-Talk to the AI naturally, or use these commands:
-
-| Command | What It Does |
-|---------|--------------|
-| `@margot-ai-editor create PR` | Create a PR with the content |
-| `@margot-ai-editor place in chapter-3.md` | Specify target file |
-| `@margot-ai-editor status` | Get a project progress report |
-| `@margot-ai-editor be harsher` / `be gentler` | Adjust feedback intensity |
-| `@margot-ai-editor use the-axe` | Switch to a different persona |
-| `@margot-ai-editor I'm ready to revise` | Transition to revision phase |
-| `@margot-ai-editor [any question]` | Just have a conversation |
-
-## Labels
-
-**Core labels:**
-- `voice_transcription` - Voice memo to process
-- `ai-reviewed` - AI has analyzed
-- `quick-review` - Skip discovery, fast feedback
-- `whole-book` - Full manuscript analysis
-
-**Phase labels (auto-managed):**
-- `phase:discovery` - Editor asking questions
-- `phase:feedback` - Feedback provided
-- `phase:revision` - Author revising
-- `phase:complete` - Done
-
-**Persona labels (optional):**
-- `persona:margot`, `persona:sage`, `persona:the-axe`, etc.
-
-## Configuration
-
-### LLM Model Selection
-
-> **IMPORTANT: Reasoning Models Required**
->
-> AI Book Editor **only supports models with chain-of-thought reasoning** (extended thinking).
-> This is required so the AI can explain its editorial decisions transparently.
-> Using a non-reasoning model will cause errors.
-
-**Supported Models (December 2025):**
-
-| Model | Provider | Notes |
-|-------|----------|-------|
-| `claude-sonnet-4-5-20250929` | Anthropic | **Default, recommended** |
-| `claude-opus-4-5-20251101` | Anthropic | Most capable |
-| `claude-haiku-4-5-20251201` | Anthropic | Fast & cheap with thinking |
-| `deepseek-reasoner` | DeepSeek | DeepSeek V3.2 thinking mode |
-| `o3` / `o4-mini` | OpenAI | Latest OpenAI reasoning |
-| `gemini-2.5-flash` | Google | Gemini with thinking |
-| `gemini-2.5-pro` | Google | Gemini Pro with thinking |
-
-**NOT Supported (will fail):**
-- `gpt-4o`, `gpt-4o-mini` - No reasoning support
-- `gemini-1.5-*`, `gemini-2.0-flash-lite` - No thinking support
-- `claude-3-*` (older models) - No extended thinking
-- Any model without chain-of-thought capability
-
-Configure via environment:
-
-```bash
-# Default: Claude Sonnet 4.5 (recommended)
-MODEL=claude-sonnet-4-5-20250929
-
-# Anthropic alternatives
-MODEL=claude-haiku-4-5-20251201    # Fast & cheap
-MODEL=claude-opus-4-5-20251101     # Most capable
-
-# Other providers
-MODEL=deepseek-reasoner            # DeepSeek V3.2
-MODEL=o4-mini                       # OpenAI (fast)
-MODEL=gemini-2.5-flash             # Google Gemini
-
-# Aliases
-MODEL=claude         # claude-sonnet-4-5-20250929
-MODEL=claude-haiku   # claude-haiku-4-5-20251201
-MODEL=cheap          # claude-haiku-4-5-20251201
-MODEL=fast           # o4-mini
-MODEL=powerful       # claude-opus-4-5-20251101
+@margot-ai-editor create PR
 ```
 
-> **Note:** Model IDs change over time. Check the source files or provider docs
-> for the latest. Last verified: December 2025.
-
-### Why Reasoning Models?
-
-Every AI editorial decision includes a collapsible "Editorial Reasoning" section that explains WHY the AI made its suggestions. This transparency helps authors:
-- Understand the AI's thought process
-- Accept or reject suggestions with full context
-- Learn from the editorial feedback
-- Trust the AI as a collaborator, not a black box
-
-### Editor Personas
-
-Choose from preset editor personalities, each with different approaches to feedback:
-
-| Persona | Style | Best For |
-|---------|-------|----------|
-| **Margot Fielding** | Sharp, ruthless, market-aware | Later drafts, tough love |
-| **Sage Holloway** | Nurturing mentor | Early drafts, building confidence |
-| **Maxwell Blueprint** | Structure-obsessed | Pacing, chapter order |
-| **Sterling Chase** | Commercially strategic | Positioning, hooks, audience |
-| **The Axe** | Brutal, no mercy | Cutting 30%, bloated drafts |
-| **Sunny Brightwell** | Pure encouragement | Writer's block, recovery |
-| **Professor Ashworth** | Academic, literary | Elevating craft |
-| **Chip Madison** | Commercial maximalist | Maximum reach |
-
-**[See all personas and create your own →](PERSONAS.md)**
-
-Configure in `.ai-context/config.yaml`:
-```yaml
-persona: margot
-```
-
-### EDITORIAL_GUIDELINES.md
-Hard rules the AI must follow. These are non-negotiable.
-
-### .ai-context/
-Knowledge base files that help the AI understand your book:
-- `knowledge.jsonl` - Q&A pairs from your conversations
-- `terminology.yaml` - Term preferences
-- `themes.yaml` - Book themes
-- `author-preferences.yaml` - Style preferences
+The AI creates a PR. You review and merge. Your book grows.
 
 ---
 
-## Development & Testing
+## The AI Adapts to You
+
+The more you write, the smarter your editor gets:
+
+| Your Progress | AI Behavior | Why |
+|---------------|-------------|-----|
+| **Day 1** - First voice memo | Welcomes you, asks about your vision | You're just starting—celebrate momentum |
+| **Week 4** - Several chapters in | Tracks consistency, notes themes | You have material to compare against |
+| **Month 3** - First draft done | Rigorous structural critique | Time for real revision work |
+| **Month 4** - Polishing | Line edits, grammar, style | Almost there—make it shine |
+
+**Override anytime:** Say `@margot-ai-editor be harsher` or `I'm ready for tough love`.
+
+### How the AI Learns
+
+Every time you answer a question or give feedback, the AI remembers:
+
+1. AI learns something → Creates a PR to update `.ai-context/book.yaml`
+2. You review the PR → Merge if correct, close if wrong
+3. Next time → AI uses what it learned
+
+Your book's "memory" lives in git. Version-controlled. Reviewable. You have final say.
+
+---
+
+## Commands
+
+Talk naturally, or use shortcuts:
+
+| Say This | AI Does This |
+|----------|--------------|
+| `@margot-ai-editor create PR` | Creates a PR with cleaned content |
+| `@margot-ai-editor place in chapter-3.md` | Sets target file |
+| `@margot-ai-editor status` | Shows project progress |
+| `@margot-ai-editor be harsher` | Turns up the criticism |
+| `@margot-ai-editor use the-axe` | Switches to brutal editing persona |
+| `@margot-ai-editor skip the questions` | Fast feedback, no discovery |
+| Any question or comment | Just responds conversationally |
+
+---
+
+## Editor Personas
+
+Different editors for different moods:
+
+| Persona | Style | Use When |
+|---------|-------|----------|
+| **Margot** (default) | Sharp, market-aware | General feedback |
+| **Sage** | Nurturing mentor | Early drafts, need encouragement |
+| **The Axe** | Brutal, no mercy | Cutting bloat |
+| **Blueprint** | Structure-obsessed | Pacing problems |
+| **Sterling** | Commercial strategist | Positioning, hooks |
+
+Switch anytime: `@margot-ai-editor use sage` or add label `persona:the-axe`
+
+---
+
+## Labels You'll Actually Use
+
+**Start here:**
+- `voice_transcription` - "This is a voice memo, process it"
+- `quick-review` - "Skip questions, just give feedback"
+
+**For bigger analysis:**
+- `whole-book` - "Read everything, give cross-chapter feedback"
+
+**The AI manages these automatically:**
+- `phase:*` labels - Tracks where you are in the process
+- `ai-reviewed` - AI has seen this
+
+---
+
+## Advanced: Custom Configuration
+
+Most users don't need to touch this. The defaults work great.
+
+### Files You Can Customize
+
+| File | What It Does |
+|------|--------------|
+| `EDITORIAL_GUIDELINES.md` | Hard rules the AI must follow (non-negotiable) |
+| `.ai-context/config.yaml` | Default persona, project settings |
+| `.ai-context/terminology.yaml` | "Use X not Y" preferences |
+| `.ai-context/book.yaml` | Auto-managed by AI via PRs |
+
+### Choosing a Different LLM
+
+Default is Claude Sonnet 4.5. To use a different model, add a `MODEL` secret:
+
+```bash
+MODEL=claude-haiku-4-5-20251201   # Cheaper, faster
+MODEL=claude-opus-4-5-20251101    # Most capable
+MODEL=deepseek-reasoner           # DeepSeek alternative
+MODEL=gemini-2.5-flash            # Google alternative
+```
+
+> **Note:** Only reasoning models work (ones with "thinking" capability). GPT-4o won't work.
+
+### Creating a Bot Identity (Optional)
+
+Want AI comments to appear as `margot-ai-editor[bot]` instead of `github-actions[bot]`?
+
+1. Create a GitHub App (Settings → Developer settings → GitHub Apps)
+2. Give it Contents, Issues, and Pull requests permissions
+3. Install it on your repo
+4. Add `AI_EDITOR_APP_ID` and `AI_EDITOR_PRIVATE_KEY` secrets
+
+This is purely cosmetic—everything works without it.
+
+---
+
+## For Contributors: Development & Testing
 
 This section covers how to test and develop the AI Book Editor.
 
