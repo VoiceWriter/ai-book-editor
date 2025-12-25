@@ -8,6 +8,10 @@ Usage:
     python seeds/seed.py --labels           # Seed only labels
     python seeds/seed.py --clean            # Delete all test issues
     python seeds/seed.py --repo owner/repo  # Use different repo
+
+Authentication (in priority order):
+    1. GitHub App: AI_EDITOR_APP_ID + AI_EDITOR_PRIVATE_KEY
+    2. Personal token: GITHUB_TOKEN
 """
 
 import argparse
@@ -20,7 +24,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 try:
-    from github import Github
+    from github import Auth, Github, GithubIntegration
 except ImportError:
     print("Install PyGithub: pip install PyGithub")
     sys.exit(1)
@@ -33,14 +37,61 @@ def load_seeds() -> dict:
         return json.load(f)
 
 
-def get_github_client() -> Github:
-    """Get authenticated GitHub client."""
+def get_github_client(repo_name: str) -> Github:
+    """
+    Get authenticated GitHub client.
+
+    Tries GitHub App auth first (for bot identity), falls back to personal token.
+    """
+    app_id = os.environ.get("AI_EDITOR_APP_ID")
+    private_key = os.environ.get("AI_EDITOR_PRIVATE_KEY")
+
+    # Also check for private key file path
+    private_key_path = os.environ.get("AI_EDITOR_PRIVATE_KEY_PATH")
+    if private_key_path and os.path.exists(private_key_path):
+        with open(private_key_path) as f:
+            private_key = f.read()
+
+    # Try GitHub App authentication first
+    if app_id and private_key:
+        try:
+            # Clean up private key (may have literal \n from env)
+            if "\\n" in private_key:
+                private_key = private_key.replace("\\n", "\n")
+
+            auth = Auth.AppAuth(int(app_id), private_key)
+            gi = GithubIntegration(auth=auth)
+
+            # Get installation for the repo's owner
+            owner = repo_name.split("/")[0]
+            installation = gi.get_installations()[0]  # Get first installation
+
+            # Try to find installation for specific owner
+            for inst in gi.get_installations():
+                if inst.raw_data.get("account", {}).get("login") == owner:
+                    installation = inst
+                    break
+
+            # Get access token for this installation
+            access_token = gi.get_access_token(installation.id)
+            print(f"Using GitHub App authentication (installation {installation.id})")
+            return Github(auth=Auth.Token(access_token.token))
+
+        except Exception as e:
+            print(f"GitHub App auth failed: {e}")
+            print("Falling back to GITHUB_TOKEN...")
+
+    # Fall back to personal access token
     token = os.environ.get("GITHUB_TOKEN")
     if not token:
-        print("Error: GITHUB_TOKEN not set")
-        print("Run: export GITHUB_TOKEN=ghp_...")
+        print("Error: No authentication available")
+        print("Set either:")
+        print("  - AI_EDITOR_APP_ID + AI_EDITOR_PRIVATE_KEY (for bot identity)")
+        print("  - GITHUB_TOKEN (for personal token)")
         sys.exit(1)
-    return Github(token)
+
+    print("Using personal access token authentication")
+    return Github(auth=Auth.Token(token))
 
 
 def seed_labels(repo, labels: list, verbose: bool = True):
@@ -119,7 +170,7 @@ def main():
     if verbose:
         print(f"Connecting to {args.repo}...")
 
-    gh = get_github_client()
+    gh = get_github_client(args.repo)
     repo = gh.get_repo(args.repo)
 
     seeds = load_seeds()
