@@ -5,6 +5,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from scripts.utils.phases import BookPhase
+
 
 class TestSetOutput:
     """Tests for set_output function."""
@@ -172,3 +174,193 @@ class TestAnalysisOutput:
         assert "Next Steps" in output
         assert "@margot-ai-editor place in" in output
         assert "@margot-ai-editor create PR" in output
+
+
+class TestBuildNewProjectWelcome:
+    """Tests for build_new_project_welcome function."""
+
+    def test_includes_persona_name(self):
+        """Should include the persona name in welcome."""
+        from scripts.process_transcription import build_new_project_welcome
+
+        result = build_new_project_welcome("Margot")
+
+        assert "I'm Margot" in result
+        assert "Welcome!" in result
+
+    def test_includes_discovery_questions(self):
+        """Should include key discovery questions."""
+        from scripts.process_transcription import build_new_project_welcome
+
+        result = build_new_project_welcome("Test Editor")
+
+        assert "What's this book about?" in result
+        assert "Who are you writing this for?" in result
+        assert "What do you want readers to feel or know" in result
+        assert "How polished is this piece?" in result
+
+
+class TestBuildPhaseAwareTask:
+    """Tests for build_phase_aware_task function."""
+
+    def test_new_phase_is_encouraging(self):
+        """NEW phase should have encouraging focus."""
+        from scripts.process_transcription import build_phase_aware_task
+
+        result = build_phase_aware_task(BookPhase.NEW, None)
+
+        assert "PHASE: NEW PROJECT" in result
+        assert "Celebrating" in result or "celebrating" in result.lower()
+        assert "nitpick" in result.lower()
+
+    def test_drafting_phase_is_balanced(self):
+        """DRAFTING phase should balance encouragement and feedback."""
+        from scripts.process_transcription import build_phase_aware_task
+
+        result = build_phase_aware_task(BookPhase.DRAFTING, None)
+
+        assert "PHASE: DRAFTING" in result
+        assert "Balance" in result or "balance" in result.lower()
+
+    def test_revising_phase_is_rigorous(self):
+        """REVISING phase should focus on structural feedback."""
+        from scripts.process_transcription import build_phase_aware_task
+
+        result = build_phase_aware_task(BookPhase.REVISING, None)
+
+        assert "PHASE: REVISING" in result
+        assert "rigorous" in result.lower()
+        assert "structural" in result.lower()
+
+    def test_polishing_phase_is_precise(self):
+        """POLISHING phase should focus on line-level editing."""
+        from scripts.process_transcription import build_phase_aware_task
+
+        result = build_phase_aware_task(BookPhase.POLISHING, None)
+
+        assert "PHASE: POLISHING" in result
+        assert "Line-level" in result or "line-level" in result.lower()
+
+    def test_includes_book_context_when_provided(self):
+        """Should include book context when provided."""
+        from scripts.process_transcription import build_phase_aware_task
+
+        book_context = "This is a book about AI and productivity."
+        result = build_phase_aware_task(BookPhase.DRAFTING, book_context)
+
+        assert "PHASE: DRAFTING" in result
+        assert book_context in result
+
+    def test_no_phase_returns_empty_string(self):
+        """Should return empty string when phase is None."""
+        from scripts.process_transcription import build_phase_aware_task
+
+        result = build_phase_aware_task(None, None)
+
+        assert result == ""
+
+
+class TestBuildDiscoveryAwareTask:
+    """Tests for build_discovery_aware_task function."""
+
+    def test_without_discovery_returns_base_task(self):
+        """Should return base task when no discovery context."""
+        from scripts.process_transcription import build_discovery_aware_task
+
+        result = build_discovery_aware_task(
+            discovery_context=None,
+            persona_id="margot",
+            book_phase=BookPhase.NEW,
+            book_context=None,
+        )
+
+        assert "Cleaned Transcript" in result
+        assert "Content Analysis" in result
+        assert "Suggested Placement" in result
+        assert "Editorial Notes" in result
+        assert "Ready for PR?" in result
+
+    def test_with_discovery_includes_questions(self):
+        """Should include questions asked during discovery."""
+        from scripts.process_transcription import build_discovery_aware_task
+
+        discovery_context = {
+            "questions_asked": ["What's this book about?", "Who is your reader?"],
+            "author_responses": ["It's about AI writing workflows."],
+        }
+
+        result = build_discovery_aware_task(
+            discovery_context=discovery_context,
+            persona_id="margot",
+            book_phase=None,
+            book_context=None,
+        )
+
+        assert "What You Learned in Discovery" in result
+        assert "What's this book about?" in result
+        assert "Who is your reader?" in result
+
+    def test_with_discovery_includes_emotional_state(self):
+        """Should include emotional state guidance when detected."""
+        from scripts.process_transcription import build_discovery_aware_task
+
+        discovery_context = {
+            "questions_asked": [],
+            "author_responses": [],
+            "emotional_state": "vulnerable",
+        }
+
+        result = build_discovery_aware_task(
+            discovery_context=discovery_context,
+            persona_id="margot",
+            book_phase=None,
+            book_context=None,
+        )
+
+        assert "emotional state" in result.lower()
+        assert "vulnerable" in result
+        assert "encouragement" in result.lower()
+
+    def test_with_discovery_includes_knowledge_items(self):
+        """Should include extracted knowledge items."""
+        from scripts.process_transcription import build_discovery_aware_task
+
+        discovery_context = {
+            "questions_asked": [],
+            "author_responses": [],
+            "knowledge_items": [
+                {"type": "preference", "content": "I like short chapters"},
+                {"type": "goal", "content": "Help readers save time"},
+            ],
+        }
+
+        result = build_discovery_aware_task(
+            discovery_context=discovery_context,
+            persona_id="margot",
+            book_phase=None,
+            book_context=None,
+        )
+
+        assert "Key insights from discovery" in result
+        assert "preference" in result
+        assert "goal" in result
+
+    def test_combines_phase_and_discovery(self):
+        """Should combine phase guidance with discovery context."""
+        from scripts.process_transcription import build_discovery_aware_task
+
+        discovery_context = {
+            "questions_asked": ["Question 1"],
+            "author_responses": ["Response 1"],
+        }
+
+        result = build_discovery_aware_task(
+            discovery_context=discovery_context,
+            persona_id="margot",
+            book_phase=BookPhase.DRAFTING,
+            book_context=None,
+        )
+
+        # Should have both phase and discovery content
+        assert "PHASE: DRAFTING" in result
+        assert "What You Learned in Discovery" in result

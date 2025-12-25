@@ -1,14 +1,172 @@
 """Tests for phases.py - editorial workflow phases and discovery."""
 
 from scripts.utils.phases import (
+    BOOK_PHASE_CONFIG,
     PHASE_LABELS,
+    BookPhase,
     EditorialPhase,
     EmotionalState,
     detect_emotional_state,
     extract_knowledge_items,
+    get_book_phase_guidance,
     get_phase_label,
     should_skip_discovery,
+    suggest_phase_transition,
 )
+
+
+class TestBookPhase:
+    """Test BookPhase enum and configuration."""
+
+    def test_all_book_phases_exist(self):
+        """All expected book phases should exist."""
+        expected_phases = ["new", "drafting", "revising", "polishing", "complete"]
+        for phase_value in expected_phases:
+            phase = BookPhase(phase_value)
+            assert phase.value == phase_value
+
+    def test_all_book_phases_have_config(self):
+        """Every book phase should have a configuration."""
+        for phase in BookPhase:
+            assert phase in BOOK_PHASE_CONFIG
+            config = BOOK_PHASE_CONFIG[phase]
+            assert "name" in config
+            assert "description" in config
+            assert "editor_focus" in config
+            assert "feedback_style" in config
+            assert "criticism_level" in config
+
+    def test_book_phase_feedback_styles(self):
+        """Book phases should have appropriate feedback styles."""
+        assert BOOK_PHASE_CONFIG[BookPhase.NEW]["feedback_style"] == "encouraging"
+        assert BOOK_PHASE_CONFIG[BookPhase.DRAFTING]["feedback_style"] == "balanced"
+        assert BOOK_PHASE_CONFIG[BookPhase.REVISING]["feedback_style"] == "rigorous"
+        assert BOOK_PHASE_CONFIG[BookPhase.POLISHING]["feedback_style"] == "precise"
+        assert BOOK_PHASE_CONFIG[BookPhase.COMPLETE]["feedback_style"] == "celebratory"
+
+    def test_book_phase_criticism_levels(self):
+        """Criticism level should increase with phase progression."""
+        assert BOOK_PHASE_CONFIG[BookPhase.NEW]["criticism_level"] == "minimal"
+        assert BOOK_PHASE_CONFIG[BookPhase.DRAFTING]["criticism_level"] == "moderate"
+        assert BOOK_PHASE_CONFIG[BookPhase.REVISING]["criticism_level"] == "high"
+        assert BOOK_PHASE_CONFIG[BookPhase.POLISHING]["criticism_level"] == "detailed"
+        assert BOOK_PHASE_CONFIG[BookPhase.COMPLETE]["criticism_level"] == "none"
+
+
+class TestGetBookPhaseGuidance:
+    """Test get_book_phase_guidance function."""
+
+    def test_returns_formatted_guidance_for_new(self):
+        """Should return formatted guidance for NEW phase."""
+        result = get_book_phase_guidance(BookPhase.NEW)
+        assert "## Book Phase: New Project" in result
+        assert "encouraging" in result
+        assert "minimal" in result
+
+    def test_returns_formatted_guidance_for_revising(self):
+        """Should return formatted guidance for REVISING phase."""
+        result = get_book_phase_guidance(BookPhase.REVISING)
+        assert "## Book Phase: Revising" in result
+        assert "rigorous" in result
+        assert "high" in result
+
+    def test_includes_editor_focus_items(self):
+        """Should include all editor focus items."""
+        result = get_book_phase_guidance(BookPhase.DRAFTING)
+        assert "Your focus at this phase" in result
+        # Check for at least one focus item
+        assert "Balance encouragement with substantive feedback" in result
+
+    def test_all_phases_produce_valid_guidance(self):
+        """All phases should produce non-empty guidance."""
+        for phase in BookPhase:
+            result = get_book_phase_guidance(phase)
+            assert result
+            assert "## Book Phase:" in result
+
+
+class TestSuggestPhaseTransition:
+    """Test suggest_phase_transition function."""
+
+    def test_new_to_drafting_with_chapters(self):
+        """Should suggest DRAFTING when enough chapters exist."""
+        result = suggest_phase_transition(
+            current_phase=BookPhase.NEW,
+            chapters_drafted=2,
+            chapters_planned=10,
+            author_signals=[],
+        )
+        assert result == BookPhase.DRAFTING
+
+    def test_new_to_drafting_explicit_ready(self):
+        """Should suggest DRAFTING when author is ready."""
+        result = suggest_phase_transition(
+            current_phase=BookPhase.NEW,
+            chapters_drafted=0,
+            chapters_planned=10,
+            author_signals=["I think I'm ready for the next phase"],
+        )
+        assert result == BookPhase.DRAFTING
+
+    def test_drafting_to_revising_all_drafted(self):
+        """Should suggest REVISING when all chapters drafted."""
+        result = suggest_phase_transition(
+            current_phase=BookPhase.DRAFTING,
+            chapters_drafted=10,
+            chapters_planned=10,
+            author_signals=[],
+        )
+        assert result == BookPhase.REVISING
+
+    def test_drafting_to_revising_explicit(self):
+        """Should suggest REVISING when author says time to revise."""
+        result = suggest_phase_transition(
+            current_phase=BookPhase.DRAFTING,
+            chapters_drafted=5,
+            chapters_planned=10,
+            author_signals=["Time to revise what I have"],
+        )
+        assert result == BookPhase.REVISING
+
+    def test_revising_to_polishing(self):
+        """Should suggest POLISHING when author ready for polish."""
+        result = suggest_phase_transition(
+            current_phase=BookPhase.REVISING,
+            chapters_drafted=10,
+            chapters_planned=10,
+            author_signals=["Let's polish this up"],
+        )
+        assert result == BookPhase.POLISHING
+
+    def test_polishing_to_complete(self):
+        """Should suggest COMPLETE when author says done."""
+        result = suggest_phase_transition(
+            current_phase=BookPhase.POLISHING,
+            chapters_drafted=10,
+            chapters_planned=10,
+            author_signals=["I think we're done!"],
+        )
+        assert result == BookPhase.COMPLETE
+
+    def test_no_transition_when_not_ready(self):
+        """Should return None when no transition is warranted."""
+        result = suggest_phase_transition(
+            current_phase=BookPhase.NEW,
+            chapters_drafted=0,
+            chapters_planned=10,
+            author_signals=["Just getting started"],
+        )
+        assert result is None
+
+    def test_complete_never_transitions(self):
+        """COMPLETE phase should not transition anywhere."""
+        result = suggest_phase_transition(
+            current_phase=BookPhase.COMPLETE,
+            chapters_drafted=10,
+            chapters_planned=10,
+            author_signals=["What's next?"],
+        )
+        assert result is None
 
 
 class TestEditorialPhase:
