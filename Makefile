@@ -1,6 +1,6 @@
 # AI Book Editor - Development & Testing
 
-.PHONY: help install test-issue test-comment test-pr test-scheduled lint clean seed seed-labels seed-clean
+.PHONY: help install test-issue test-comment test-pr test-scheduled lint clean seed seed-labels seed-clean init init-dry-run
 
 help:
 	@echo "AI Book Editor - Development Commands"
@@ -23,7 +23,11 @@ help:
 	@echo "  make test-pr        Simulate PR opened event"
 	@echo "  make test-scheduled Run scheduled review locally"
 	@echo ""
-	@echo "Seed Data:"
+	@echo "Repository Setup:"
+	@echo "  make init           Initialize a repo (labels, templates, .ai-context)"
+	@echo "  make init-dry-run   Preview what init would create"
+	@echo ""
+	@echo "Seed Data (for testing):"
 	@echo "  make seed           Create test issues/labels in test repo"
 	@echo "  make seed-labels    Create only labels"
 	@echo "  make seed-clean     Close all test issues"
@@ -114,3 +118,19 @@ clean:
 	rm -rf .github/scripts/__pycache__/
 	rm -rf .github/scripts/utils/__pycache__/
 	find . -name "*.pyc" -delete
+
+# Initialize repository (create labels, templates, .ai-context)
+init: check-env
+	@echo "Initializing repository..."
+	@source .venv/bin/activate 2>/dev/null || true && \
+	set -a && source .env && set +a && \
+	python seeds/init.py --repo $(REPO)
+
+init-dry-run: check-env
+	@echo "Previewing initialization (dry run)..."
+	@source .venv/bin/activate 2>/dev/null || true && \
+	set -a && source .env && set +a && \
+	python seeds/init.py --repo $(REPO) --dry-run
+
+# Default repo for init
+REPO ?= VoiceWriter/ai-book-editor-test
