@@ -14,17 +14,14 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from scripts.utils.github_client import (  # noqa: E402
-    get_github_client,
+from scripts.utils.github_client import (
+    get_github_client,  # noqa: E402
     get_pull_request,
     get_repo,
     read_file_content,
 )
 from scripts.utils.knowledge_base import load_editorial_context  # noqa: E402
-from scripts.utils.llm_client import (  # noqa: E402
-    build_editorial_prompt,
-    call_editorial,
-)
+from scripts.utils.llm_client import build_editorial_prompt, call_editorial  # noqa: E402
 
 
 def get_pr_files_content(repo, pr) -> list:

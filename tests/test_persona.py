@@ -9,10 +9,10 @@ import pytest
 # Add scripts path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / ".github" / "scripts"))
 
-from utils.persona import (  # noqa: E402
+from utils.persona import (
     Persona,
     PersonaRules,
-    PersonaTraits,
+    PersonaTraits,  # noqa: E402
     PersonaVoice,
     format_discovery_prompt,
     format_feedback_with_tiers,

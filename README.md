@@ -101,25 +101,61 @@ Use these commands in issue comments:
 - `@margot-ai-editor place in chapter-name.md` - Specify target file
 - `@margot-ai-editor [any question]` - Have a conversation
 
+## How It Works
+
+### Just Start Writing
+
+**No setup required.** Submit your first voice memo, and the AI handles everything:
+
+1. **First submission?** The AI welcomes you, asks a few questions about your project, and gives feedback
+2. **The AI remembers.** Your answers are saved to `.ai-context/book.yaml` via PR (you approve it)
+3. **Feedback adapts.** As your project matures, the AI adjusts its approach automatically
+
+```
+Day 1: Submit voice memo → AI welcomes you, asks about your project → Encouraging feedback
+Day 30: Submit chapter 5 → AI notices patterns, tracks consistency → Substantive feedback
+Day 90: All chapters drafted → AI suggests revision phase → Rigorous structural feedback
+Day 120: Polish mode → AI focuses on line editing → Detailed prose feedback
+```
+
+### Book Project Lifecycle
+
+The AI automatically detects where you are and adjusts:
+
+| Phase | What AI Does | Criticism Level |
+|-------|--------------|-----------------|
+| **New** | Celebrates ideas, asks about vision, builds momentum | Minimal |
+| **Drafting** | Balances encouragement with substance, tracks themes | Moderate |
+| **Revising** | Structural critique, identifies gaps, pushes for clarity | High |
+| **Polishing** | Line editing, grammar, style consistency | Detailed |
+
+**Override anytime:** Just say `@margot-ai-editor be harsher` or `@margot-ai-editor I'm ready to revise`.
+
+### Configuration via Pull Requests
+
+The AI never changes your configuration without permission:
+
+1. AI learns something about your project (from conversation)
+2. AI creates a PR updating `.ai-context/book.yaml`
+3. You review and merge (or close if wrong)
+
+Your config lives in git. It's version-controlled, reviewable, and you have final say.
+
 ## Workflows
 
-### Voice-to-PR Pipeline (with Discovery)
+### Voice-to-PR Pipeline
 ```
-Voice memo → Issue → Discovery Questions → Author Responds → Tailored Feedback → Discussion → PR → Review → Merge
+Voice memo → Issue → Feedback (with optional discovery) → Discussion → PR → Review → Merge
 ```
 
-**The Discovery Phase:**
-1. Author submits voice transcript
-2. Editor asks 2-4 personalized questions (based on persona)
-3. Author responds with context, goals, emotional state
-4. Editor provides feedback tailored to what they learned
-5. Responses feed into knowledge base for future context
-
-**Skip Discovery:** Check "Skip discovery" in the issue template or add `quick-review` label.
+**Discovery (optional):**
+- Editor can ask 2-4 questions before giving feedback
+- You can skip with `quick-review` label or by saying "just review this"
+- Responses feed into knowledge base for future context
 
 ### Human Writing Pipeline
 ```
-Write in VS Code -> Push branch -> AI reviews PR -> Iterate -> Merge
+Write in VS Code → Push branch → AI reviews PR → Iterate → Merge
 ```
 
 ### Whole Book Analysis
@@ -127,24 +163,38 @@ Write in VS Code -> Push branch -> AI reviews PR -> Iterate -> Merge
 Add `whole-book` label → AI reads all chapters → Cross-chapter analysis
 ```
 
-Detects:
-- Thematic threads across chapters
-- Consistency issues (character, timeline, terminology)
-- Repetition and redundancy
-- Promise/payoff tracking
-- Structural recommendations
+Detects: thematic threads, consistency issues, repetition, promise/payoff tracking
 
-## Editorial Phases
+## Commands
 
-Issues progress through phases tracked by labels:
+Talk to the AI naturally, or use these commands:
 
-| Phase | Label | Description |
-|-------|-------|-------------|
-| Discovery | `phase:discovery` | Editor asking questions |
-| Feedback | `phase:feedback` | Editorial analysis provided |
-| Revision | `phase:revision` | Author revising based on feedback |
-| Hold | `phase:hold` | On hold for author reflection |
-| Complete | `phase:complete` | Ready for publication |
+| Command | What It Does |
+|---------|--------------|
+| `@margot-ai-editor create PR` | Create a PR with the content |
+| `@margot-ai-editor place in chapter-3.md` | Specify target file |
+| `@margot-ai-editor status` | Get a project progress report |
+| `@margot-ai-editor be harsher` / `be gentler` | Adjust feedback intensity |
+| `@margot-ai-editor use the-axe` | Switch to a different persona |
+| `@margot-ai-editor I'm ready to revise` | Transition to revision phase |
+| `@margot-ai-editor [any question]` | Just have a conversation |
+
+## Labels
+
+**Core labels:**
+- `voice_transcription` - Voice memo to process
+- `ai-reviewed` - AI has analyzed
+- `quick-review` - Skip discovery, fast feedback
+- `whole-book` - Full manuscript analysis
+
+**Phase labels (auto-managed):**
+- `phase:discovery` - Editor asking questions
+- `phase:feedback` - Feedback provided
+- `phase:revision` - Author revising
+- `phase:complete` - Done
+
+**Persona labels (optional):**
+- `persona:margot`, `persona:sage`, `persona:the-axe`, etc.
 
 ## Configuration
 

@@ -4,11 +4,13 @@ Process voice memo transcriptions from GitHub Issues.
 
 This script:
 1. Reads the transcript from the issue body
-2. Loads editorial context (persona, guidelines, knowledge base)
-3. Incorporates discovery context if available (from discovery phase)
-4. Calls Claude to clean, analyze, and suggest placement
-5. Outputs analysis to file for workflow to post as comment
-6. Sets step outputs for workflow to use
+2. Loads editorial context (persona, guidelines, knowledge base, book config)
+3. Detects if this is a NEW PROJECT and adds welcome questions
+4. Incorporates discovery context if available (from discovery phase)
+5. Adjusts feedback based on book phase (new/drafting/revising/polishing)
+6. Calls Claude to clean, analyze, and suggest placement
+7. Outputs analysis to file for workflow to post as comment
+8. Sets step outputs for workflow to use
 
 DOES NOT: Make direct GitHub API calls for comments/labels (workflow handles that)
 """
@@ -26,6 +28,7 @@ from scripts.utils.github_client import get_github_client, get_issue, get_repo  
 from scripts.utils.knowledge_base import load_editorial_context  # noqa: E402
 from scripts.utils.llm_client import build_editorial_prompt, call_editorial  # noqa: E402
 from scripts.utils.persona import load_persona  # noqa: E402
+from scripts.utils.phases import BookPhase  # noqa: E402
 
 
 def set_output(name: str, value: str):
@@ -64,13 +67,103 @@ def load_discovery_context() -> Optional[dict]:
     return None
 
 
-def build_discovery_aware_task(discovery_context: Optional[dict], persona_id: str) -> str:
+def build_new_project_welcome(persona_name: str) -> str:
+    """Build welcome message for first-time submissions (no book.yaml exists)."""
+    return f"""## Welcome! This is exciting.
+
+I'm {persona_name}, and I'll be your editor for this project. This looks like your first submission - I'd love to learn more about what you're working on.
+
+**A few questions to help me help you:**
+
+1. **What's this book about?** Give me the elevator pitch.
+2. **Who are you writing this for?** Who's your ideal reader?
+3. **What do you want readers to feel or know after reading?**
+4. **How polished is this piece?** First draft brain-dump, or something more refined?
+
+*Just reply with whatever feels natural. I'll remember what you share and use it to give you better feedback.*
+
+---
+
+**In the meantime, here's my initial take on what you submitted:**
+
+"""
+
+
+def build_phase_aware_task(book_phase: Optional[BookPhase], book_context: Optional[str]) -> str:
     """
-    Build the analysis task, incorporating discovery context if available.
+    Build the analysis task based on current book phase.
+
+    Each phase gets different editorial focus:
+    - NEW: Encouraging, focus on ideas, avoid nitpicking
+    - DRAFTING: Balance encouragement with substance
+    - REVISING: More rigorous, structural feedback
+    - POLISHING: Line-level, copyediting focus
+    """
+    phase_instructions = ""
+
+    if book_phase == BookPhase.NEW:
+        phase_instructions = """
+**PHASE: NEW PROJECT**
+The author is just starting. Focus on:
+- Celebrating their ideas and momentum
+- Helping them articulate their vision
+- Avoiding nitpicky criticism
+- Asking about their goals, not fixing their prose
+- Building their confidence to keep going
+"""
+    elif book_phase == BookPhase.DRAFTING:
+        phase_instructions = """
+**PHASE: DRAFTING**
+The author is in the messy middle. Focus on:
+- Balance encouragement with substantive feedback
+- Content and meaning over polish
+- Tracking consistency with what they've written before
+- Helping them push through
+- Noting emerging themes
+"""
+    elif book_phase == BookPhase.REVISING:
+        phase_instructions = """
+**PHASE: REVISING**
+The author has first drafts done and wants structural feedback. Focus on:
+- More rigorous structural critique
+- Flow, pacing, and consistency issues
+- Identify gaps and redundancies
+- Push for clarity and precision
+- Challenge weak sections
+- Suggest cuts, moves, and expansions
+"""
+    elif book_phase == BookPhase.POLISHING:
+        phase_instructions = """
+**PHASE: POLISHING**
+The author is in final cleanup mode. Focus on:
+- Line-level editing and prose refinement
+- Grammar, punctuation, and style consistency
+- Word choice and sentence rhythm
+- Final consistency checks
+- This is close to done - help them cross the finish line
+"""
+
+    if book_context:
+        phase_instructions += f"\n{book_context}\n"
+
+    return phase_instructions
+
+
+def build_discovery_aware_task(
+    discovery_context: Optional[dict],
+    persona_id: str,
+    book_phase: Optional[BookPhase] = None,
+    book_context: Optional[str] = None,
+) -> str:
+    """
+    Build the analysis task, incorporating discovery context and book phase.
 
     When discovery context is present, the task is personalized based on
     what the author shared during discovery.
     """
+    # Start with phase-specific instructions
+    phase_section = build_phase_aware_task(book_phase, book_context)
+
     base_task = """Analyze this voice memo transcript and provide:
 
 1. **Cleaned Transcript**: Fix grammar, punctuation, remove filler words (um, uh, like, you know), but preserve the author's voice and meaning exactly. Do not add new content or change the meaning.
@@ -91,8 +184,11 @@ def build_discovery_aware_task(discovery_context: Optional[dict], persona_id: st
 
 Format your response with clear ### headers for each section."""
 
+    # Combine phase instructions with base task
+    full_task = phase_section + base_task if phase_section else base_task
+
     if not discovery_context:
-        return base_task
+        return full_task
 
     # Build discovery-aware task
     lines = []
@@ -136,7 +232,7 @@ Format your response with clear ### headers for each section."""
     lines.append("")
     lines.append("**Now, using what you learned, analyze this transcript:**")
     lines.append("")
-    lines.append(base_task)
+    lines.append(full_task)
     lines.append("")
     lines.append("**Remember:** Tailor your feedback to what the author told you during discovery.")
     lines.append("Honor their goals, respect their emotional state, reference their intent.")
@@ -173,6 +269,19 @@ def main():
     context = load_editorial_context(repo, labels=labels)
     persona_id = context.get("persona_id", "margot")
 
+    # Detect new project (no book.yaml exists)
+    is_new_project = context.get("book_config") is None
+    book_phase = context.get("book_phase")
+    book_context = context.get("book_context")
+
+    if is_new_project:
+        print("NEW PROJECT DETECTED - will include welcome message")
+        # Treat as NEW phase for feedback style
+        book_phase = BookPhase.NEW
+
+    if book_phase:
+        print(f"Book phase: {book_phase.value}")
+
     # Check for discovery context (from discovery phase)
     discovery_context = load_discovery_context()
     if discovery_context:
@@ -182,8 +291,13 @@ def main():
         if discovery_context.get("emotional_state"):
             print(f"Author emotional state: {discovery_context['emotional_state']}")
 
-    # Build the analysis prompt (discovery-aware if available)
-    task = build_discovery_aware_task(discovery_context, persona_id)
+    # Build the analysis prompt (discovery-aware and phase-aware)
+    task = build_discovery_aware_task(
+        discovery_context=discovery_context,
+        persona_id=persona_id,
+        book_phase=book_phase,
+        book_context=book_context,
+    )
 
     prompt = build_editorial_prompt(
         persona=context["persona"],
@@ -213,11 +327,6 @@ def main():
     # Format the comment with reasoning explanation
     reasoning_section = llm_response.format_editorial_explanation()
 
-    # Note if discovery was used
-    discovery_note = ""
-    if discovery_context:
-        discovery_note = "\n*This feedback is tailored based on our discovery conversation.*\n"
-
     # Get persona name for signature
     try:
         persona = load_persona(persona_id)
@@ -225,8 +334,23 @@ def main():
     except Exception:
         persona_name = "AI Editor"
 
-    comment = f"""## AI Editorial Analysis
-{discovery_note}
+    # Build welcome section for new projects
+    welcome_section = ""
+    if is_new_project:
+        welcome_section = build_new_project_welcome(persona_name)
+
+    # Note if discovery was used
+    discovery_note = ""
+    if discovery_context:
+        discovery_note = "\n*This feedback is tailored based on our discovery conversation.*\n"
+
+    # Phase indicator
+    phase_note = ""
+    if book_phase and not is_new_project:
+        phase_note = f"\n*Current phase: {book_phase.value}*\n"
+
+    comment = f"""{welcome_section}## AI Editorial Analysis
+{discovery_note}{phase_note}
 {llm_response.content}
 
 ---
@@ -260,9 +384,14 @@ def main():
     # Set step outputs
     set_output("success", "true")
     set_output("has_analysis", "true")
+    set_output("is_new_project", str(is_new_project).lower())
+    if book_phase:
+        set_output("book_phase", book_phase.value)
 
     print(f"Successfully processed issue #{issue_number}")
     print("Analysis written to output/analysis-comment.md")
+    if is_new_project:
+        print("New project detected - welcome message included")
 
 
 if __name__ == "__main__":

@@ -1,10 +1,17 @@
 """Editorial phases and configurable prompts for AI Book Editor.
 
-This module defines the editorial workflow phases, their GitHub labels,
-templates, and configurable prompts. It enables a discovery-first
-approach where editors ASK before they TELL.
+This module defines:
+1. BookPhase - Where is the whole project? (new/drafting/revising/polishing)
+2. EditorialPhase - Where is this specific piece? (discovery/feedback/revision/complete)
 
-Phases flow: DISCOVERY -> FEEDBACK -> REVISION -> POLISH -> COMPLETE
+BookPhase influences HOW the editor gives feedback:
+- NEW: Extra encouraging, focus on capturing ideas, help with structure
+- DRAFTING: Balance encouragement and feedback, track consistency
+- REVISING: More rigorous, focus on structure and flow, identify gaps
+- POLISHING: Line-level feedback, copyediting, final consistency checks
+
+EditorialPhase tracks the workflow for individual content:
+- DISCOVERY -> FEEDBACK -> REVISION -> POLISH -> COMPLETE
 
 Key concept: Discovery questions can spawn their own issues, and
 Q&A history feeds into the learning/RAG system.
@@ -14,6 +21,212 @@ from enum import Enum
 from typing import Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
+
+# =============================================================================
+# BOOK PROJECT PHASES
+# =============================================================================
+
+
+class BookPhase(str, Enum):
+    """
+    Book project lifecycle phases.
+
+    These represent where the WHOLE PROJECT is, not individual pieces.
+    The book phase influences how the editor behaves across all interactions.
+    """
+
+    NEW = "new"  # Just starting, capturing vision, building structure
+    DRAFTING = "drafting"  # Writing first drafts, messy middle
+    REVISING = "revising"  # Major structural revisions, second draft
+    POLISHING = "polishing"  # Final cleanup, copyediting, pre-publish
+    COMPLETE = "complete"  # Book is finished
+
+
+# Book phase configuration - how the editor should behave at each phase
+BOOK_PHASE_CONFIG: Dict[BookPhase, dict] = {
+    BookPhase.NEW: {
+        "name": "New Project",
+        "description": "Capturing vision and building initial structure",
+        "editor_focus": [
+            "Help author articulate their vision",
+            "Ask about target audience and goals",
+            "Encourage every submission",
+            "Avoid nitpicking or detailed critique",
+            "Help develop initial outline/structure",
+            "Celebrate momentum, not perfection",
+        ],
+        "feedback_style": "encouraging",
+        "criticism_level": "minimal",
+        "suggested_duration": "2-4 weeks",
+        "transition_signals": [
+            "Author has clear vision documented",
+            "Basic chapter structure exists",
+            "Several chapters are in progress",
+        ],
+    },
+    BookPhase.DRAFTING: {
+        "name": "Drafting",
+        "description": "Writing first drafts, getting content on the page",
+        "editor_focus": [
+            "Balance encouragement with substantive feedback",
+            "Focus on content and meaning over polish",
+            "Track consistency across chapters",
+            "Identify emerging themes",
+            "Help author push through the messy middle",
+            "Provide regular progress check-ins",
+        ],
+        "feedback_style": "balanced",
+        "criticism_level": "moderate",
+        "suggested_duration": "2-6 months",
+        "transition_signals": [
+            "All planned chapters have first drafts",
+            "Author feels 'done' with initial pass",
+            "Major content decisions are made",
+        ],
+    },
+    BookPhase.REVISING: {
+        "name": "Revising",
+        "description": "Major structural revisions and second draft work",
+        "editor_focus": [
+            "More rigorous structural feedback",
+            "Focus on flow, pacing, and consistency",
+            "Identify gaps and redundancies",
+            "Push for clarity and precision",
+            "Challenge weak arguments or sections",
+            "Suggest cuts, moves, and expansions",
+        ],
+        "feedback_style": "rigorous",
+        "criticism_level": "high",
+        "suggested_duration": "1-3 months",
+        "transition_signals": [
+            "Structure is solid",
+            "No major content gaps remain",
+            "Author ready for line-level work",
+        ],
+    },
+    BookPhase.POLISHING: {
+        "name": "Polishing",
+        "description": "Final cleanup, copyediting, and pre-publish prep",
+        "editor_focus": [
+            "Line-level editing and prose refinement",
+            "Grammar, punctuation, and style consistency",
+            "Final consistency sweep across chapters",
+            "Front/back matter review",
+            "Help with blurb and marketing copy",
+            "Final read-through for flow",
+        ],
+        "feedback_style": "precise",
+        "criticism_level": "detailed",
+        "suggested_duration": "2-4 weeks",
+        "transition_signals": [
+            "No remaining prose concerns",
+            "Author confident in final product",
+            "Ready for publication/submission",
+        ],
+    },
+    BookPhase.COMPLETE: {
+        "name": "Complete",
+        "description": "Book is finished and ready for publication",
+        "editor_focus": [
+            "Celebrate completion!",
+            "Provide summary of the journey",
+            "Help with next steps (querying, publishing, etc.)",
+            "Archive learnings for future projects",
+        ],
+        "feedback_style": "celebratory",
+        "criticism_level": "none",
+        "suggested_duration": "N/A",
+        "transition_signals": [],
+    },
+}
+
+
+def get_book_phase_guidance(phase: BookPhase) -> str:
+    """
+    Get editorial guidance for a book phase.
+
+    Returns a formatted string that can be included in prompts to guide
+    the editor's behavior based on where the project is in its lifecycle.
+    """
+    config = BOOK_PHASE_CONFIG[phase]
+    lines = []
+
+    lines.append(f"## Book Phase: {config['name']}")
+    lines.append("")
+    lines.append(f"*{config['description']}*")
+    lines.append("")
+    lines.append(f"**Feedback style:** {config['feedback_style']}")
+    lines.append(f"**Criticism level:** {config['criticism_level']}")
+    lines.append("")
+    lines.append("**Your focus at this phase:**")
+    for focus in config["editor_focus"]:
+        lines.append(f"- {focus}")
+    lines.append("")
+
+    return "\n".join(lines)
+
+
+def suggest_phase_transition(
+    current_phase: BookPhase,
+    chapters_drafted: int,
+    chapters_planned: int,
+    author_signals: List[str],
+) -> Optional[BookPhase]:
+    """
+    Suggest whether it's time to transition to the next phase.
+
+    Args:
+        current_phase: Current book phase
+        chapters_drafted: Number of chapters with first drafts
+        chapters_planned: Total planned chapters
+        author_signals: Phrases from recent author messages
+
+    Returns:
+        Suggested next phase, or None if no transition recommended
+    """
+    # Get config for current phase (not used directly but documents intent)
+    _ = BOOK_PHASE_CONFIG[current_phase]
+
+    # Check for author-expressed readiness
+    author_text = " ".join(author_signals).lower()
+    ready_phrases = [
+        "ready for the next phase",
+        "time to revise",
+        "done with first draft",
+        "ready to polish",
+        "let's finish this",
+    ]
+
+    explicit_ready = any(phrase in author_text for phrase in ready_phrases)
+
+    if current_phase == BookPhase.NEW:
+        # Transition to drafting when structure exists and chapters started
+        if chapters_drafted >= 2 or explicit_ready:
+            return BookPhase.DRAFTING
+
+    elif current_phase == BookPhase.DRAFTING:
+        # Transition to revising when all chapters have first drafts
+        if chapters_planned > 0 and chapters_drafted >= chapters_planned:
+            return BookPhase.REVISING
+        if explicit_ready:
+            return BookPhase.REVISING
+
+    elif current_phase == BookPhase.REVISING:
+        # Transition to polishing when author is ready for line editing
+        if explicit_ready or "polish" in author_text or "copyedit" in author_text:
+            return BookPhase.POLISHING
+
+    elif current_phase == BookPhase.POLISHING:
+        # Transition to complete when author declares done
+        if "done" in author_text or "finished" in author_text or "complete" in author_text:
+            return BookPhase.COMPLETE
+
+    return None
+
+
+# =============================================================================
+# EDITORIAL PHASES (per-issue workflow)
+# =============================================================================
 
 
 class EditorialPhase(str, Enum):

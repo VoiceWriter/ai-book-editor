@@ -16,11 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from scripts.utils.github_client import (  # noqa: E402
-    get_github_client,
-    get_repo,
-    read_file_content,
-)
+from scripts.utils.github_client import get_github_client, get_repo, read_file_content  # noqa: E402
 from scripts.utils.llm_client import call_editorial  # noqa: E402
 from scripts.utils.reasoning_log import get_actions_logger  # noqa: E402
 

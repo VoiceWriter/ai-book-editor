@@ -26,19 +26,14 @@ from typing import Optional
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from pydantic import BaseModel, ConfigDict, Field
-from scripts.utils.github_client import (
-    add_labels,  # noqa: E402
-    get_github_client,
-    get_issue,
-    get_issue_comments,
-    get_repo,
-)
+from scripts.utils.github_client import add_labels  # noqa: E402
+from scripts.utils.github_client import get_github_client, get_issue, get_issue_comments, get_repo
 from scripts.utils.knowledge_base import load_editorial_context  # noqa: E402
 from scripts.utils.llm_client import call_editorial_structured  # noqa: E402
 from scripts.utils.persona import format_discovery_prompt, load_persona  # noqa: E402
+from scripts.utils.phases import EditorialPhase  # noqa: E402
 from scripts.utils.phases import (
     PHASE_LABELS,
-    EditorialPhase,  # noqa: E402
     detect_emotional_state,
     extract_knowledge_items,
     should_skip_discovery,

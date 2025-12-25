@@ -32,9 +32,9 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from scripts.utils.github_client import close_issue  # noqa: E402
 from scripts.utils.github_client import (
     add_labels,
-    close_issue,  # noqa: E402
     create_issue,
     edit_issue,
     get_github_client,
@@ -48,12 +48,8 @@ from scripts.utils.knowledge_base import load_editorial_context  # noqa: E402
 from scripts.utils.llm_client import ConversationalIntent  # noqa: E402
 from scripts.utils.llm_client import LLMResponse, call_editorial, call_editorial_structured
 from scripts.utils.persona import format_persona_list, parse_persona_command  # noqa: E402
-from scripts.utils.phases import (
-    PHASE_LABELS,
-    EditorialPhase,  # noqa: E402
-    detect_emotional_state,
-    extract_knowledge_items,
-)
+from scripts.utils.phases import EditorialPhase  # noqa: E402
+from scripts.utils.phases import PHASE_LABELS, detect_emotional_state, extract_knowledge_items
 from scripts.utils.reasoning_log import get_actions_logger  # noqa: E402
 
 

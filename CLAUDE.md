@@ -115,6 +115,73 @@ def test_my_model_rejects_wrong_types():
         MyModel.model_validate({"field": 123})  # Should be str
 ```
 
+## Book Project Lifecycle
+
+### Philosophy: Invisible Infrastructure
+
+The AI editor adapts automatically. Authors don't manage phases or config files.
+
+**Key principles:**
+1. **Zero-config start** - First voice memo triggers welcome + questions
+2. **Auto-detect phases** - Based on chapter count, content maturity, author signals
+3. **PR-based config** - AI proposes changes, author approves via merge
+4. **Natural language overrides** - "be harsher" works, no forms needed
+
+### BookPhase vs EditorialPhase
+
+Two orthogonal concepts:
+
+| Concept | Scope | Tracked By |
+|---------|-------|------------|
+| `BookPhase` | Whole project lifecycle | `.ai-context/book.yaml` |
+| `EditorialPhase` | Single issue workflow | GitHub labels |
+
+A book in `polishing` phase might still have new voice memos going through `discovery → feedback → revision`.
+
+### Book Phase Affects Feedback Style
+
+```python
+from scripts.utils.phases import BookPhase, get_book_phase_guidance
+
+# Get phase-specific editorial guidance
+guidance = get_book_phase_guidance(BookPhase.REVISING)
+# Returns: "More rigorous structural critique..."
+```
+
+### Configuration via PRs
+
+Never mutate book.yaml directly. Always via PR:
+
+```python
+from scripts.setup_book import create_config_pr, BookConfigUpdate
+
+update = BookConfigUpdate(
+    phase="revising",
+    core_themes=["AI accessibility", "human-machine collaboration"],
+)
+
+pr_url = create_config_pr(
+    repo=repo,
+    config=merge_config_update(existing, update),
+    title="Update book configuration",
+    body="Transitioning to revision phase based on conversation",
+    branch_name="ai-editor/config-update-20251225",
+    source_issue=42,
+)
+```
+
+### New Project Detection
+
+```python
+# In process_transcription.py
+context = load_editorial_context(repo)
+is_new_project = context.get("book_config") is None
+
+if is_new_project:
+    # Include welcome message + questions
+    # Treat as BookPhase.NEW for feedback style
+```
+
 ## File Structure
 
 ```
@@ -123,16 +190,28 @@ def test_my_model_rejects_wrong_types():
     utils/
       llm_client.py      # LLM utilities with Pydantic DTOs
       github_client.py   # GitHub API helpers
-      knowledge_base.py  # Knowledge base loader
+      knowledge_base.py  # Knowledge base + book config loader
+      phases.py          # BookPhase, EditorialPhase, phase detection
+      persona.py         # Persona loading and formatting
     process_transcription.py
+    setup_book.py        # PR-based book config updates
     review_pr.py
     respond_to_comment.py
     ...
 
+.ai-context/
+  book.yaml              # Book project config (auto-generated via PR)
+  book.yaml.template     # Template for reference
+  knowledge.jsonl        # Q&A pairs from conversations
+  terminology.yaml       # Term preferences
+  themes.yaml            # Book themes
+  author-preferences.yaml
+
 tests/
   test_llm_client.py
   test_github_client.py
-  conftest.py           # Shared fixtures
+  test_phases.py         # Phase detection tests
+  conftest.py            # Shared fixtures
 ```
 
 ## Response Models

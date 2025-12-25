@@ -1,0 +1,72 @@
+# Book Configuration for AI Editor
+# Copy this to book.yaml and fill in your details
+# The AI editor uses this to personalize feedback for your project's stage
+
+# ============================================================================
+# BOOK IDENTITY
+# ============================================================================
+title: ""                           # Your book's title (can be working title)
+subtitle: ""                        # Optional subtitle
+author: ""                          # Your name
+
+# ============================================================================
+# AUDIENCE & PURPOSE
+# ============================================================================
+target_audience: |
+  Describe your ideal reader. Who are they? What do they already know?
+  What are they hoping to get from this book?
+
+core_themes:
+  - ""  # Theme 1: What's this book really about?
+  - ""  # Theme 2: Secondary theme
+  - ""  # Theme 3: Additional theme
+
+author_goals:
+  - ""  # What do you want readers to FEEL?
+  - ""  # What do you want readers to KNOW?
+  - ""  # What do you want readers to DO?
+
+# ============================================================================
+# PROJECT PHASE
+# ============================================================================
+# Phase determines how the AI editor gives feedback:
+#   new       - Extra encouraging, focus on capturing ideas, help with structure
+#   drafting  - Balance of encouragement and feedback, track consistency
+#   revising  - More rigorous, focus on structure and flow, identify gaps
+#   polishing - Line-level feedback, copyediting, final consistency checks
+phase: new
+
+# ============================================================================
+# STRUCTURE & PROGRESS
+# ============================================================================
+target_word_count: null             # Optional: your goal (e.g., 60000)
+target_chapters: null               # Optional: planned chapter count
+
+# Chapter tracking - update as you progress
+# Status: planned | in_progress | drafted | revised | polished
+chapters:
+  - name: "Introduction"
+    file: "introduction.md"
+    status: planned
+    notes: ""
+  # Add more chapters as you plan them
+
+# ============================================================================
+# EDITORIAL PREFERENCES
+# ============================================================================
+# Override default persona for this project (optional)
+default_persona: null               # margot, sage, blueprint, sterling, etc.
+
+# Specific editorial requests
+editorial_notes: |
+  Any specific guidance for your AI editor. For example:
+  - "I'm sensitive about the opening chapter, be gentle"
+  - "Push me hard on clarity - I tend to be verbose"
+  - "This is a humor book, preserve my jokes even if imperfect"
+
+# ============================================================================
+# METADATA
+# ============================================================================
+created_at: null                    # Set automatically on first use
+last_phase_change: null             # Tracks when phase was last updated
+phase_history: []                   # Automatic log of phase transitions

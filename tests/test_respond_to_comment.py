@@ -4,7 +4,6 @@ from unittest.mock import MagicMock
 
 import pytest
 
-
 # =============================================================================
 # FIXTURES
 # =============================================================================
@@ -258,8 +257,8 @@ class TestExecuteIssueActions:
 
     def test_closes_issue(self, sample_issue_with_labels, mock_repo):
         """Should close issue when action is 'close'."""
-        from scripts.utils.llm_client import ConversationalIntent, IssueAction
         from scripts.respond_to_comment import execute_issue_actions
+        from scripts.utils.llm_client import ConversationalIntent, IssueAction
 
         intent = ConversationalIntent(
             understood=True,
@@ -277,8 +276,8 @@ class TestExecuteIssueActions:
 
     def test_adds_labels(self, sample_issue_with_labels, mock_repo):
         """Should add labels when action is 'add_labels'."""
-        from scripts.utils.llm_client import ConversationalIntent, IssueAction
         from scripts.respond_to_comment import execute_issue_actions
+        from scripts.utils.llm_client import ConversationalIntent, IssueAction
 
         intent = ConversationalIntent(
             understood=True,
@@ -296,8 +295,8 @@ class TestExecuteIssueActions:
 
     def test_removes_labels(self, sample_issue_with_labels, mock_repo):
         """Should remove labels when action is 'remove_labels'."""
-        from scripts.utils.llm_client import ConversationalIntent, IssueAction
         from scripts.respond_to_comment import execute_issue_actions
+        from scripts.utils.llm_client import ConversationalIntent, IssueAction
 
         intent = ConversationalIntent(
             understood=True,
@@ -315,8 +314,8 @@ class TestExecuteIssueActions:
 
     def test_creates_follow_up_issue(self, sample_issue_with_labels, mock_repo):
         """Should create new issue when action is 'create_issue'."""
-        from scripts.utils.llm_client import ConversationalIntent, IssueAction
         from scripts.respond_to_comment import execute_issue_actions
+        from scripts.utils.llm_client import ConversationalIntent, IssueAction
 
         new_issue = MagicMock()
         new_issue.number = 43
@@ -345,8 +344,8 @@ class TestExecuteIssueActions:
 
     def test_edits_issue_title(self, sample_issue_with_labels, mock_repo):
         """Should edit title when action is 'edit_title'."""
-        from scripts.utils.llm_client import ConversationalIntent, IssueAction
         from scripts.respond_to_comment import execute_issue_actions
+        from scripts.utils.llm_client import ConversationalIntent, IssueAction
 
         intent = ConversationalIntent(
             understood=True,
@@ -364,8 +363,8 @@ class TestExecuteIssueActions:
 
     def test_no_action_for_respond(self, sample_issue_with_labels, mock_repo):
         """Should not execute anything for 'respond' action."""
-        from scripts.utils.llm_client import ConversationalIntent, IssueAction
         from scripts.respond_to_comment import execute_issue_actions
+        from scripts.utils.llm_client import ConversationalIntent, IssueAction
 
         intent = ConversationalIntent(
             understood=True,
@@ -767,8 +766,8 @@ class TestConversationalIntentModel:
 
     def test_invalid_confidence_rejected(self):
         """Should reject invalid confidence values."""
-        from scripts.utils.llm_client import ConversationalIntent
         from pydantic import ValidationError
+        from scripts.utils.llm_client import ConversationalIntent
 
         with pytest.raises(ValidationError):
             ConversationalIntent(
@@ -782,8 +781,8 @@ class TestConversationalIntentModel:
 
     def test_invalid_action_rejected(self):
         """Should reject invalid action types."""
-        from scripts.utils.llm_client import IssueAction
         from pydantic import ValidationError
+        from scripts.utils.llm_client import IssueAction
 
         with pytest.raises(ValidationError):
             IssueAction(action="invalid_action")
