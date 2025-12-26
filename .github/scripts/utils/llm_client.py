@@ -762,6 +762,27 @@ def call_editorial_structured(
     # Generate JSON schema from Pydantic model
     json_schema = response_model.model_json_schema()
 
+    # Anthropic requires additionalProperties: false for all object types
+    def fix_schema_for_anthropic(schema: dict) -> dict:
+        """Recursively add additionalProperties: false to all objects."""
+        if isinstance(schema, dict):
+            if schema.get("type") == "object":
+                schema["additionalProperties"] = False
+            for key, value in schema.items():
+                if isinstance(value, dict):
+                    fix_schema_for_anthropic(value)
+                elif isinstance(value, list):
+                    for item in value:
+                        if isinstance(item, dict):
+                            fix_schema_for_anthropic(item)
+            # Handle $defs (Pydantic's referenced definitions)
+            if "$defs" in schema:
+                for def_name, def_schema in schema["$defs"].items():
+                    fix_schema_for_anthropic(def_schema)
+        return schema
+
+    json_schema = fix_schema_for_anthropic(json_schema)
+
     # Add structured output format
     response_format = {
         "type": "json_schema",
