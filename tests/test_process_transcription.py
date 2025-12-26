@@ -186,7 +186,7 @@ class TestBuildNewProjectWelcome:
         result = build_new_project_welcome("Margot")
 
         assert "I'm Margot" in result
-        assert "Welcome!" in result
+        assert "Let's get to know your project" in result
 
     def test_includes_discovery_questions(self):
         """Should include key discovery questions."""
@@ -196,8 +196,8 @@ class TestBuildNewProjectWelcome:
 
         assert "What's this book about?" in result
         assert "Who are you writing this for?" in result
-        assert "What do you want readers to feel or know" in result
-        assert "How polished is this piece?" in result
+        assert "What tone are you going for?" in result
+        assert "What phase are you in?" in result
 
 
 class TestBuildPhaseAwareTask:

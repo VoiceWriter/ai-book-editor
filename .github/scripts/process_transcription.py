@@ -68,23 +68,23 @@ def load_discovery_context() -> Optional[dict]:
 
 
 def build_new_project_welcome(persona_name: str) -> str:
-    """Build welcome message for first-time submissions (no book.yaml exists)."""
-    return f"""## Welcome! This is exciting.
+    """Build welcome message when no book configuration exists yet."""
+    return f"""## Let's get to know your project
 
-I'm {persona_name}, and I'll be your editor for this project. This looks like your first submission - I'd love to learn more about what you're working on.
+I'm {persona_name}, and I'll be your editor. I don't have context about your book yet, so I'd love to learn more.
 
-**A few questions to help me help you:**
+**A few questions to help me give you better feedback:**
 
 1. **What's this book about?** Give me the elevator pitch.
 2. **Who are you writing this for?** Who's your ideal reader?
-3. **What do you want readers to feel or know after reading?**
-4. **How polished is this piece?** First draft brain-dump, or something more refined?
+3. **What tone are you going for?** Academic, conversational, lyrical?
+4. **What phase are you in?** Early brainstorming, drafting, or revising?
 
-*Just reply with whatever feels natural. I'll remember what you share and use it to give you better feedback.*
+*Reply with whatever feels natural. Once I know more, I can tailor my feedback to your goals.*
 
 ---
 
-**In the meantime, here's my initial take on what you submitted:**
+**Here's my take on what you submitted:**
 
 """
 

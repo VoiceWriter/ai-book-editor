@@ -530,6 +530,177 @@ def test_13_1_empty_body(repo: str, dry_run: bool) -> TestResult:
 
 
 # =============================================================================
+# Phase 4: Discovery Conversation Tests
+# =============================================================================
+
+
+def test_4_1_discovery_conversation(repo: str, dry_run: bool) -> TestResult:
+    """Test 4.1: Full discovery conversation flow."""
+    test_id = "4.1"
+    description = "Discovery conversation: answer questions"
+
+    if dry_run:
+        return TestResult(test_id, "Discovery", description, TestStatus.SKIPPED, "Dry run")
+
+    start = time.time()
+    try:
+        # Create initial voice memo
+        body = """I have this idea for a book about teaching people how to cook
+simple weeknight dinners. Not fancy stuff, just practical meals that busy
+parents can make in under 30 minutes with ingredients they probably already have."""
+
+        issue_number = create_issue(
+            repo,
+            "Voice memo: Weeknight cooking book idea",
+            body,
+            ["voice_transcription"],
+        )
+
+        # Wait for AI's initial response (should ask discovery questions)
+        print("  Waiting for AI's initial questions...")
+        comments = wait_for_bot_comment(repo, issue_number, timeout_seconds=180)
+
+        # Reply with answers to discovery questions
+        print("  Answering discovery questions...")
+        add_comment(
+            repo, issue_number,
+            """@margot-ai-editor
+
+1. The book is about helping stressed parents cook healthy meals without recipes - more like building blocks and techniques.
+
+2. My ideal reader is a working parent who gets home at 6pm exhausted and needs to feed their family something decent.
+
+3. I want them to feel confident and creative in the kitchen, not stressed about following exact recipes.
+
+4. This is still early stage - I'm just brain-dumping ideas right now."""
+        )
+
+        # Wait for AI's follow-up response
+        print("  Waiting for AI's response to answers...")
+        comments = wait_for_bot_comment(repo, issue_number, min_comments=2, timeout_seconds=180)
+
+        # Verify AI acknowledged the answers
+        if len(comments) >= 2:
+            return TestResult(
+                test_id, "Discovery", description, TestStatus.PASSED,
+                f"Issue #{issue_number} - conversation completed",
+                issue_number=issue_number,
+                duration_seconds=time.time() - start,
+            )
+        return TestResult(
+            test_id, "Discovery", description, TestStatus.FAILED,
+            "AI didn't respond to answers",
+            issue_number=issue_number,
+            duration_seconds=time.time() - start,
+        )
+    except TimeoutError as e:
+        return TestResult(
+            test_id, "Discovery", description, TestStatus.TIMEOUT,
+            str(e), duration_seconds=time.time() - start,
+        )
+    except Exception as e:
+        return TestResult(
+            test_id, "Discovery", description, TestStatus.FAILED,
+            str(e), duration_seconds=time.time() - start,
+        )
+
+
+def test_4_2_editorial_feedback_request(repo: str, issue_number: int, dry_run: bool) -> TestResult:
+    """Test 4.2: Ask for specific editorial feedback."""
+    test_id = "4.2"
+    description = "Ask: what's working in my writing?"
+
+    if dry_run or not issue_number:
+        return TestResult(test_id, "Discovery", description, TestStatus.SKIPPED, "Dry run or no issue")
+
+    start = time.time()
+    try:
+        add_comment(
+            repo, issue_number,
+            "@margot-ai-editor What's working well in my writing so far? What should I keep doing?"
+        )
+        comments = wait_for_bot_comment(repo, issue_number, min_comments=3, timeout_seconds=180)
+
+        return TestResult(
+            test_id, "Discovery", description, TestStatus.PASSED,
+            "Got editorial feedback",
+            issue_number=issue_number,
+            duration_seconds=time.time() - start,
+        )
+    except TimeoutError as e:
+        return TestResult(
+            test_id, "Discovery", description, TestStatus.TIMEOUT,
+            str(e), issue_number=issue_number,
+            duration_seconds=time.time() - start,
+        )
+    except Exception as e:
+        return TestResult(
+            test_id, "Discovery", description, TestStatus.FAILED,
+            str(e), issue_number=issue_number,
+            duration_seconds=time.time() - start,
+        )
+
+
+def test_4_3_clarification_question(repo: str, issue_number: int, dry_run: bool) -> TestResult:
+    """Test 4.3: Ask a clarifying question about feedback."""
+    test_id = "4.3"
+    description = "Ask: can you explain what you mean?"
+
+    if dry_run or not issue_number:
+        return TestResult(test_id, "Discovery", description, TestStatus.SKIPPED, "Dry run or no issue")
+
+    start = time.time()
+    try:
+        add_comment(
+            repo, issue_number,
+            "@margot-ai-editor Can you give me a specific example of what you mean? I want to make sure I understand."
+        )
+        comments = wait_for_bot_comment(repo, issue_number, min_comments=4, timeout_seconds=180)
+
+        return TestResult(
+            test_id, "Discovery", description, TestStatus.PASSED,
+            "Got clarification",
+            issue_number=issue_number,
+            duration_seconds=time.time() - start,
+        )
+    except TimeoutError as e:
+        return TestResult(
+            test_id, "Discovery", description, TestStatus.TIMEOUT,
+            str(e), issue_number=issue_number,
+            duration_seconds=time.time() - start,
+        )
+    except Exception as e:
+        return TestResult(
+            test_id, "Discovery", description, TestStatus.FAILED,
+            str(e), issue_number=issue_number,
+            duration_seconds=time.time() - start,
+        )
+
+
+def run_phase_4(repo: str, dry_run: bool) -> list[TestResult]:
+    """Run Phase 4: Discovery Conversation tests."""
+    results = []
+
+    # Test 4.1: Full discovery conversation
+    result_4_1 = test_4_1_discovery_conversation(repo, dry_run)
+    results.append(result_4_1)
+    print_result(result_4_1)
+
+    # Test 4.2: Ask for editorial feedback (use issue from 4.1)
+    if result_4_1.issue_number:
+        result_4_2 = test_4_2_editorial_feedback_request(repo, result_4_1.issue_number, dry_run)
+        results.append(result_4_2)
+        print_result(result_4_2)
+
+        # Test 4.3: Clarification question
+        result_4_3 = test_4_3_clarification_question(repo, result_4_1.issue_number, dry_run)
+        results.append(result_4_3)
+        print_result(result_4_3)
+
+    return results
+
+
+# =============================================================================
 # Test Runner
 # =============================================================================
 
@@ -654,7 +825,7 @@ def print_summary(results: list[TestResult]) -> None:
 def main():
     parser = argparse.ArgumentParser(description="Run E2E tests for AI Book Editor")
     parser.add_argument("--repo", required=True, help="Repository (owner/repo)")
-    parser.add_argument("--phase", type=int, help="Run specific phase (1, 2, 5, 9, 13)")
+    parser.add_argument("--phase", type=int, help="Run specific phase (1, 2, 4, 5, 9, 13)")
     parser.add_argument("--dry-run", action="store_true", help="Don't create issues")
     parser.add_argument("--quick", action="store_true", help="Run quick smoke test (phases 1, 9)")
     args = parser.parse_args()
@@ -672,7 +843,7 @@ def main():
     elif args.quick:
         phases_to_run = [1, 9]
     else:
-        phases_to_run = [1, 2, 5, 9, 13]
+        phases_to_run = [1, 2, 4, 5, 9, 13]
 
     for phase in phases_to_run:
         print(f"\n{'=' * 50}")
@@ -683,6 +854,8 @@ def main():
             all_results.extend(run_phase_1(args.repo, args.dry_run))
         elif phase == 2:
             all_results.extend(run_phase_2(args.repo, args.dry_run))
+        elif phase == 4:
+            all_results.extend(run_phase_4(args.repo, args.dry_run))
         elif phase == 5:
             all_results.extend(run_phase_5(args.repo, args.dry_run))
         elif phase == 9:
