@@ -4,6 +4,11 @@ on:
   issue_comment:
     types: [created]
 
+permissions:
+  issues: write
+  contents: write
+  pull-requests: write
+
 jobs:
   respond:
     # Only respond to comments on voice_transcription issues that mention @margot-ai-editor

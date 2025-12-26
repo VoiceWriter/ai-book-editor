@@ -1,6 +1,6 @@
 # AI Book Editor - Development & Testing
 
-.PHONY: help install test-issue test-comment test-pr test-scheduled lint clean seed seed-labels seed-clean init init-dry-run
+.PHONY: help install test-issue test-comment test-pr test-scheduled lint clean seed seed-labels seed-clean init init-dry-run e2e e2e-quick e2e-dry-run
 
 help:
 	@echo "AI Book Editor - Development Commands"
@@ -26,6 +26,11 @@ help:
 	@echo "Repository Setup:"
 	@echo "  make init           Initialize a repo (labels, templates, .ai-context)"
 	@echo "  make init-dry-run   Preview what init would create"
+	@echo ""
+	@echo "E2E Tests (requires gh CLI):"
+	@echo "  make e2e            Run full E2E test suite"
+	@echo "  make e2e-quick      Run quick smoke test (phases 1, 9)"
+	@echo "  make e2e-dry-run    Preview E2E tests without creating issues"
 	@echo ""
 	@echo "Seed Data (for testing):"
 	@echo "  make seed           Create test issues/labels in test repo"
@@ -132,5 +137,18 @@ init-dry-run: check-env
 	set -a && source .env && set +a && \
 	python seeds/init.py --repo $(REPO) --dry-run
 
-# Default repo for init
+# Default repo for init and E2E tests
 REPO ?= VoiceWriter/ai-book-editor-test
+
+# E2E tests using gh CLI
+e2e:
+	@echo "Running full E2E test suite..."
+	python seeds/e2e_tests.py --repo $(REPO)
+
+e2e-quick:
+	@echo "Running quick E2E smoke test..."
+	python seeds/e2e_tests.py --repo $(REPO) --quick
+
+e2e-dry-run:
+	@echo "Previewing E2E tests (dry run)..."
+	python seeds/e2e_tests.py --repo $(REPO) --dry-run
