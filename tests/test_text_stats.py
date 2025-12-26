@@ -11,13 +11,18 @@ sys.path.insert(0, str(Path(__file__).parent.parent / ".github" / "scripts"))
 from analyze_text_stats import (
     TextStats,
     ChapterStats,
+    AggregateStats,
+    ImpactAnalysis,
     analyze_text,
     count_paragraphs,
     calculate_lexical_diversity,
     extract_text_from_markdown,
     interpret_stats,
+    aggregate_stats,
+    compute_impact,
     format_stats_comment,
     format_stats_for_ai,
+    format_impact_comment,
 )
 
 
@@ -237,6 +242,204 @@ class TestInterpretStats:
         chapter = interpret_stats(stats)
 
         assert "vocabulary" in chapter.interpretation.lower()
+
+
+class TestAggregateStats:
+    """Test aggregate statistics calculation."""
+
+    def test_empty_list_returns_zeros(self):
+        result = aggregate_stats([])
+        assert result.file_count == 0
+        assert result.total_word_count == 0
+
+    def test_single_file_matches_original(self):
+        stats = TextStats(
+            file_path="test.md",
+            word_count=100,
+            sentence_count=5,
+            paragraph_count=2,
+            flesch_reading_ease=65.0,
+            flesch_kincaid_grade=8.0,
+            reading_time_minutes=0.5,
+            avg_sentence_length=20.0,
+            avg_word_length=1.5,
+            lexical_diversity=0.6,
+            passive_voice_percent=10.0,
+            adverb_percent=3.0,
+        )
+        result = aggregate_stats([stats])
+
+        assert result.file_count == 1
+        assert result.total_word_count == 100
+        assert result.avg_flesch_reading_ease == 65.0
+
+    def test_weighted_average_by_word_count(self):
+        # Short file with high readability
+        short = TextStats(
+            file_path="short.md",
+            word_count=100,
+            sentence_count=5,
+            paragraph_count=2,
+            flesch_reading_ease=80.0,
+            flesch_kincaid_grade=6.0,
+            reading_time_minutes=0.5,
+            avg_sentence_length=20.0,
+            avg_word_length=1.3,
+            lexical_diversity=0.6,
+            passive_voice_percent=5.0,
+            adverb_percent=2.0,
+        )
+        # Long file with lower readability
+        long = TextStats(
+            file_path="long.md",
+            word_count=900,
+            sentence_count=45,
+            paragraph_count=10,
+            flesch_reading_ease=50.0,
+            flesch_kincaid_grade=10.0,
+            reading_time_minutes=4.5,
+            avg_sentence_length=20.0,
+            avg_word_length=1.8,
+            lexical_diversity=0.5,
+            passive_voice_percent=15.0,
+            adverb_percent=4.0,
+        )
+        result = aggregate_stats([short, long])
+
+        # Long file should dominate (900 vs 100 words)
+        # Weighted avg: (80*100 + 50*900) / 1000 = 53
+        assert result.avg_flesch_reading_ease == 53.0
+        assert result.total_word_count == 1000
+
+
+class TestComputeImpact:
+    """Test impact analysis computation."""
+
+    def test_no_corpus_shows_contribution(self):
+        new_stats = [TextStats(
+            file_path="new.md",
+            word_count=500,
+            sentence_count=25,
+            paragraph_count=5,
+            flesch_reading_ease=65.0,
+            flesch_kincaid_grade=8.0,
+            reading_time_minutes=2.5,
+            avg_sentence_length=20.0,
+            avg_word_length=1.5,
+            lexical_diversity=0.55,
+            passive_voice_percent=10.0,
+            adverb_percent=3.0,
+        )]
+
+        impact = compute_impact(new_stats, [])
+
+        assert impact.new_content.total_word_count == 500
+        assert impact.existing_corpus.total_word_count == 0
+        assert impact.combined.total_word_count == 500
+
+    def test_detects_readability_impact(self):
+        # New content is much harder to read
+        new_stats = [TextStats(
+            file_path="new.md",
+            word_count=500,
+            sentence_count=15,
+            paragraph_count=3,
+            flesch_reading_ease=30.0,  # Very hard
+            flesch_kincaid_grade=14.0,
+            reading_time_minutes=2.5,
+            avg_sentence_length=33.0,
+            avg_word_length=2.0,
+            lexical_diversity=0.5,
+            passive_voice_percent=25.0,
+            adverb_percent=5.0,
+        )]
+        corpus_stats = [TextStats(
+            file_path="existing.md",
+            word_count=500,
+            sentence_count=25,
+            paragraph_count=5,
+            flesch_reading_ease=70.0,  # Easy
+            flesch_kincaid_grade=7.0,
+            reading_time_minutes=2.5,
+            avg_sentence_length=20.0,
+            avg_word_length=1.4,
+            lexical_diversity=0.6,
+            passive_voice_percent=8.0,
+            adverb_percent=2.0,
+        )]
+
+        impact = compute_impact(new_stats, corpus_stats)
+
+        # Should detect the readability drop
+        assert any("harder" in s.lower() for s in impact.impact_summary)
+
+    def test_no_negative_impact_when_similar(self):
+        """When new content matches corpus style, no warnings are raised."""
+        new_stats = [TextStats(
+            file_path="new.md",
+            word_count=500,
+            sentence_count=25,
+            paragraph_count=5,
+            flesch_reading_ease=65.0,
+            flesch_kincaid_grade=8.0,
+            reading_time_minutes=2.5,
+            avg_sentence_length=20.0,
+            avg_word_length=1.5,
+            lexical_diversity=0.55,
+            passive_voice_percent=10.0,
+            adverb_percent=3.0,
+        )]
+        corpus_stats = [TextStats(
+            file_path="existing.md",
+            word_count=500,
+            sentence_count=25,
+            paragraph_count=5,
+            flesch_reading_ease=66.0,
+            flesch_kincaid_grade=8.0,
+            reading_time_minutes=2.5,
+            avg_sentence_length=20.0,
+            avg_word_length=1.5,
+            lexical_diversity=0.56,
+            passive_voice_percent=9.0,
+            adverb_percent=3.0,
+        )]
+
+        impact = compute_impact(new_stats, corpus_stats)
+
+        # Should only show volume, no warnings about readability/etc
+        assert not any("harder" in s.lower() for s in impact.impact_summary)
+        assert not any("passive" in s.lower() for s in impact.impact_summary)
+        # Should show volume contribution
+        assert any("volume" in s.lower() for s in impact.impact_summary)
+
+
+class TestFormatImpactComment:
+    """Test impact comment formatting."""
+
+    def test_includes_comparison_table(self):
+        new_stats = TextStats(
+            file_path="new.md",
+            word_count=500,
+            sentence_count=25,
+            paragraph_count=5,
+            flesch_reading_ease=65.0,
+            flesch_kincaid_grade=8.0,
+            reading_time_minutes=2.5,
+            avg_sentence_length=20.0,
+            avg_word_length=1.5,
+            lexical_diversity=0.55,
+            passive_voice_percent=10.0,
+            adverb_percent=3.0,
+        )
+        chapter = interpret_stats(new_stats)
+        impact = compute_impact([new_stats], [])
+
+        comment = format_impact_comment(impact, [chapter])
+
+        assert "New Content" in comment
+        assert "Existing Corpus" in comment
+        assert "After Adding" in comment
+        assert "Impact Summary" in comment
 
 
 class TestFormatOutput:

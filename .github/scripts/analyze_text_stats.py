@@ -61,6 +61,32 @@ class TextStats(BaseModel):
     adverb_percent: float = Field(description="Percentage of words that are adverbs")
 
 
+class AggregateStats(BaseModel):
+    """Aggregated statistics across multiple files."""
+
+    model_config = ConfigDict(strict=True)
+
+    file_count: int = Field(description="Number of files analyzed")
+    total_word_count: int = Field(description="Total words across all files")
+    avg_flesch_reading_ease: float = Field(description="Average Flesch Reading Ease")
+    avg_flesch_kincaid_grade: float = Field(description="Average grade level")
+    avg_sentence_length: float = Field(description="Average sentence length")
+    avg_lexical_diversity: float = Field(description="Average lexical diversity")
+    avg_passive_voice_percent: float = Field(description="Average passive voice %")
+    avg_adverb_percent: float = Field(description="Average adverb %")
+
+
+class ImpactAnalysis(BaseModel):
+    """Analysis of how new content impacts the corpus."""
+
+    model_config = ConfigDict(strict=True)
+
+    new_content: AggregateStats = Field(description="Stats for new/changed content")
+    existing_corpus: AggregateStats = Field(description="Stats for existing content")
+    combined: AggregateStats = Field(description="Stats after adding new content")
+    impact_summary: list[str] = Field(description="Human-readable impact statements")
+
+
 class ChapterStats(BaseModel):
     """Stats for a chapter with context."""
 
@@ -288,6 +314,190 @@ def interpret_stats(stats: TextStats) -> ChapterStats:
     )
 
 
+def aggregate_stats(stats_list: list[TextStats]) -> AggregateStats:
+    """Compute aggregate statistics across multiple files."""
+    if not stats_list:
+        return AggregateStats(
+            file_count=0,
+            total_word_count=0,
+            avg_flesch_reading_ease=0,
+            avg_flesch_kincaid_grade=0,
+            avg_sentence_length=0,
+            avg_lexical_diversity=0,
+            avg_passive_voice_percent=0,
+            avg_adverb_percent=0,
+        )
+
+    n = len(stats_list)
+    total_words = sum(s.word_count for s in stats_list)
+
+    # Weight averages by word count for more accurate representation
+    if total_words > 0:
+        weighted_fre = sum(s.flesch_reading_ease * s.word_count for s in stats_list) / total_words
+        weighted_fkg = sum(s.flesch_kincaid_grade * s.word_count for s in stats_list) / total_words
+        weighted_sent = sum(s.avg_sentence_length * s.word_count for s in stats_list) / total_words
+        weighted_lex = sum(s.lexical_diversity * s.word_count for s in stats_list) / total_words
+        weighted_passive = sum(s.passive_voice_percent * s.word_count for s in stats_list) / total_words
+        weighted_adverb = sum(s.adverb_percent * s.word_count for s in stats_list) / total_words
+    else:
+        weighted_fre = weighted_fkg = weighted_sent = weighted_lex = weighted_passive = weighted_adverb = 0
+
+    return AggregateStats(
+        file_count=n,
+        total_word_count=total_words,
+        avg_flesch_reading_ease=round(weighted_fre, 1),
+        avg_flesch_kincaid_grade=round(weighted_fkg, 1),
+        avg_sentence_length=round(weighted_sent, 1),
+        avg_lexical_diversity=round(weighted_lex, 3),
+        avg_passive_voice_percent=round(weighted_passive, 1),
+        avg_adverb_percent=round(weighted_adverb, 1),
+    )
+
+
+def compute_impact(
+    new_stats: list[TextStats],
+    corpus_stats: list[TextStats],
+) -> ImpactAnalysis:
+    """Compute how new content impacts the overall corpus."""
+    new_agg = aggregate_stats(new_stats)
+    corpus_agg = aggregate_stats(corpus_stats)
+    combined_agg = aggregate_stats(new_stats + corpus_stats)
+
+    impact_summary = []
+
+    # Compare key metrics and generate impact statements
+    if corpus_agg.file_count > 0:
+        # Readability impact
+        fre_delta = combined_agg.avg_flesch_reading_ease - corpus_agg.avg_flesch_reading_ease
+        if abs(fre_delta) > 2:
+            direction = "easier" if fre_delta > 0 else "harder"
+            impact_summary.append(
+                f"Readability: New content makes the book {direction} to read "
+                f"({corpus_agg.avg_flesch_reading_ease} → {combined_agg.avg_flesch_reading_ease})"
+            )
+
+        # Grade level impact
+        grade_delta = combined_agg.avg_flesch_kincaid_grade - corpus_agg.avg_flesch_kincaid_grade
+        if abs(grade_delta) > 0.5:
+            direction = "higher" if grade_delta > 0 else "lower"
+            impact_summary.append(
+                f"Grade level: Moves {direction} "
+                f"({corpus_agg.avg_flesch_kincaid_grade} → {combined_agg.avg_flesch_kincaid_grade})"
+            )
+
+        # Passive voice impact
+        passive_delta = combined_agg.avg_passive_voice_percent - corpus_agg.avg_passive_voice_percent
+        if abs(passive_delta) > 2:
+            direction = "more" if passive_delta > 0 else "less"
+            impact_summary.append(
+                f"Passive voice: {direction} passive overall "
+                f"({corpus_agg.avg_passive_voice_percent}% → {combined_agg.avg_passive_voice_percent}%)"
+            )
+
+        # Sentence length impact
+        sent_delta = combined_agg.avg_sentence_length - corpus_agg.avg_sentence_length
+        if abs(sent_delta) > 2:
+            direction = "longer" if sent_delta > 0 else "shorter"
+            impact_summary.append(
+                f"Sentences: Average becomes {direction} "
+                f"({corpus_agg.avg_sentence_length} → {combined_agg.avg_sentence_length} words)"
+            )
+
+        # Word count contribution
+        if combined_agg.total_word_count > 0:
+            contribution = (new_agg.total_word_count / combined_agg.total_word_count) * 100
+            impact_summary.append(
+                f"Volume: Adds {new_agg.total_word_count:,} words "
+                f"({contribution:.1f}% of total)"
+            )
+
+    if not impact_summary:
+        impact_summary.append("New content aligns well with existing corpus style")
+
+    return ImpactAnalysis(
+        new_content=new_agg,
+        existing_corpus=corpus_agg,
+        combined=combined_agg,
+        impact_summary=impact_summary,
+    )
+
+
+def format_impact_comment(impact: ImpactAnalysis, new_chapters: list[ChapterStats]) -> str:
+    """Format impact analysis as a GitHub comment."""
+    lines = ["## 📊 Text Statistics & Impact Analysis\n"]
+
+    # New content details
+    lines.append("### New/Changed Content\n")
+    for chapter in new_chapters:
+        s = chapter.stats
+        lines.append(f"**`{s.file_path}`** — {s.word_count:,} words, "
+                     f"Flesch {s.flesch_reading_ease}, Grade {s.flesch_kincaid_grade}")
+
+    lines.append("")
+
+    # Comparison table
+    lines.append("### Comparison\n")
+    lines.append("| Metric | New Content | Existing Corpus | After Adding |")
+    lines.append("|--------|-------------|-----------------|--------------|")
+
+    n = impact.new_content
+    c = impact.existing_corpus
+    a = impact.combined
+
+    def delta_arrow(new_val: float, old_val: float) -> str:
+        if old_val == 0:
+            return ""
+        diff = new_val - old_val
+        if abs(diff) < 0.1:
+            return ""
+        return " ↑" if diff > 0 else " ↓"
+
+    lines.append(f"| Words | {n.total_word_count:,} | {c.total_word_count:,} | "
+                 f"**{a.total_word_count:,}** |")
+    lines.append(f"| Flesch Reading Ease | {n.avg_flesch_reading_ease} | "
+                 f"{c.avg_flesch_reading_ease} | **{a.avg_flesch_reading_ease}**"
+                 f"{delta_arrow(a.avg_flesch_reading_ease, c.avg_flesch_reading_ease)} |")
+    lines.append(f"| Grade Level | {n.avg_flesch_kincaid_grade} | "
+                 f"{c.avg_flesch_kincaid_grade} | **{a.avg_flesch_kincaid_grade}**"
+                 f"{delta_arrow(a.avg_flesch_kincaid_grade, c.avg_flesch_kincaid_grade)} |")
+    lines.append(f"| Avg Sentence Length | {n.avg_sentence_length} | "
+                 f"{c.avg_sentence_length} | **{a.avg_sentence_length}**"
+                 f"{delta_arrow(a.avg_sentence_length, c.avg_sentence_length)} |")
+    lines.append(f"| Lexical Diversity | {n.avg_lexical_diversity:.0%} | "
+                 f"{c.avg_lexical_diversity:.0%} | **{a.avg_lexical_diversity:.0%}** |")
+    lines.append(f"| Passive Voice | {n.avg_passive_voice_percent}% | "
+                 f"{c.avg_passive_voice_percent}% | **{a.avg_passive_voice_percent}%**"
+                 f"{delta_arrow(a.avg_passive_voice_percent, c.avg_passive_voice_percent)} |")
+    lines.append(f"| Adverbs | {n.avg_adverb_percent}% | "
+                 f"{c.avg_adverb_percent}% | **{a.avg_adverb_percent}%** |")
+
+    lines.append("")
+
+    # Impact summary
+    lines.append("### Impact Summary\n")
+    for statement in impact.impact_summary:
+        lines.append(f"- {statement}")
+
+    lines.append("")
+
+    # Per-chapter suggestions
+    all_suggestions = []
+    for chapter in new_chapters:
+        for suggestion in chapter.suggestions:
+            all_suggestions.append(f"**{chapter.stats.file_path}**: {suggestion}")
+
+    if all_suggestions:
+        lines.append("### Suggestions\n")
+        for s in all_suggestions:
+            lines.append(f"- {s}")
+        lines.append("")
+
+    lines.append("---")
+    lines.append("*Stats generated by AI Book Editor*")
+
+    return "\n".join(lines)
+
+
 def format_stats_comment(chapters: list[ChapterStats]) -> str:
     """Format stats as a GitHub comment."""
     lines = ["## 📊 Text Statistics\n"]
@@ -363,71 +573,128 @@ def get_changed_files() -> list[str]:
         return []
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Analyze text statistics")
-    parser.add_argument("--file", help="Specific file to analyze")
-    parser.add_argument("--changed-only", action="store_true", help="Only analyze changed files")
-    parser.add_argument("--output", choices=["comment", "json", "ai"], default="comment",
-                        help="Output format")
-    parser.add_argument("--chapters-dir", default="chapters", help="Directory containing chapters")
-    args = parser.parse_args()
-
-    # Determine which files to analyze
-    if args.file:
-        files = [args.file]
-    elif args.changed_only:
-        files = get_changed_files()
-        if not files:
-            print("No chapter files changed in this PR")
-            return
-    else:
-        # Analyze all chapters
-        chapters_dir = Path(args.chapters_dir)
-        if chapters_dir.exists():
-            files = sorted([str(f) for f in chapters_dir.glob("**/*.md")])
-        else:
-            files = []
-
-    if not files:
-        print("No files to analyze")
-        return
-
-    print(f"Analyzing {len(files)} file(s)...")
-
+def analyze_files(files: list[str]) -> tuple[list[ChapterStats], list[TextStats]]:
+    """Analyze a list of files and return chapters and raw stats."""
     chapters = []
+    stats_list = []
+
     for file_path in files:
-        print(f"  Processing: {file_path}")
         try:
             with open(file_path) as f:
                 content = f.read()
             stats = analyze_text(content, file_path)
             chapter = interpret_stats(stats)
             chapters.append(chapter)
+            stats_list.append(stats)
         except Exception as e:
             print(f"  Error processing {file_path}: {e}")
 
-    if not chapters:
+    return chapters, stats_list
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Analyze text statistics")
+    parser.add_argument("--file", help="Specific file to analyze")
+    parser.add_argument("--changed-only", action="store_true", help="Only analyze changed files")
+    parser.add_argument("--compare", action="store_true",
+                        help="Compare new content against existing corpus")
+    parser.add_argument("--output", choices=["comment", "json", "ai"], default="comment",
+                        help="Output format")
+    parser.add_argument("--chapters-dir", default="chapters", help="Directory containing chapters")
+    args = parser.parse_args()
+
+    chapters_dir = Path(args.chapters_dir)
+
+    # Determine which files to analyze
+    if args.file:
+        new_files = [args.file]
+        do_compare = args.compare
+    elif args.changed_only:
+        new_files = get_changed_files()
+        if not new_files:
+            print("No chapter files changed in this PR")
+            return
+        # Auto-enable comparison for PRs
+        do_compare = True
+    else:
+        # Analyze all chapters (no comparison needed)
+        if chapters_dir.exists():
+            new_files = sorted([str(f) for f in chapters_dir.glob("**/*.md")])
+        else:
+            new_files = []
+        do_compare = False
+
+    if not new_files:
+        print("No files to analyze")
+        return
+
+    print(f"Analyzing {len(new_files)} new/changed file(s)...")
+    new_chapters, new_stats = analyze_files(new_files)
+
+    if not new_chapters:
         print("No chapters analyzed successfully")
         return
 
-    # Output results
-    if args.output == "json":
-        output = [c.model_dump() for c in chapters]
-        print(json.dumps(output, indent=2))
-    elif args.output == "ai":
-        output = format_stats_for_ai(chapters)
-        print(output)
-        # Also save for workflow
-        Path("output").mkdir(exist_ok=True)
-        Path("output/text-stats-ai.md").write_text(output)
-    else:
-        output = format_stats_comment(chapters)
-        print(output)
-        # Save for workflow to post as comment
-        Path("output").mkdir(exist_ok=True)
-        Path("output/text-stats-comment.md").write_text(output)
+    # If comparing, also analyze existing corpus
+    if do_compare and chapters_dir.exists():
+        all_chapter_files = sorted([str(f) for f in chapters_dir.glob("**/*.md")])
+        corpus_files = [f for f in all_chapter_files if f not in new_files]
 
-    print(f"\nAnalyzed {len(chapters)} file(s)")
+        if corpus_files:
+            print(f"Analyzing {len(corpus_files)} existing corpus file(s)...")
+            _, corpus_stats = analyze_files(corpus_files)
+        else:
+            corpus_stats = []
+
+        # Compute impact
+        impact = compute_impact(new_stats, corpus_stats)
+
+        # Output with impact analysis
+        Path("output").mkdir(exist_ok=True)
+
+        if args.output == "json":
+            output = {
+                "new_chapters": [c.model_dump() for c in new_chapters],
+                "impact": impact.model_dump(),
+            }
+            print(json.dumps(output, indent=2))
+        elif args.output == "ai":
+            # Format for AI context
+            lines = ["## Pre-computed Text Statistics with Corpus Comparison\n"]
+            lines.append("Use these metrics to inform your feedback:\n")
+            lines.append(f"**New content:** {impact.new_content.total_word_count:,} words, "
+                         f"Flesch {impact.new_content.avg_flesch_reading_ease}")
+            lines.append(f"**Existing corpus:** {impact.existing_corpus.total_word_count:,} words, "
+                         f"Flesch {impact.existing_corpus.avg_flesch_reading_ease}")
+            lines.append(f"**After adding:** Flesch {impact.combined.avg_flesch_reading_ease}")
+            lines.append("\n**Impact:**")
+            for stmt in impact.impact_summary:
+                lines.append(f"- {stmt}")
+            output = "\n".join(lines)
+            print(output)
+            Path("output/text-stats-ai.md").write_text(output)
+        else:
+            output = format_impact_comment(impact, new_chapters)
+            print(output)
+            Path("output/text-stats-comment.md").write_text(output)
+
+    else:
+        # Simple output without comparison
+        Path("output").mkdir(exist_ok=True)
+
+        if args.output == "json":
+            output = [c.model_dump() for c in new_chapters]
+            print(json.dumps(output, indent=2))
+        elif args.output == "ai":
+            output = format_stats_for_ai(new_chapters)
+            print(output)
+            Path("output/text-stats-ai.md").write_text(output)
+        else:
+            output = format_stats_comment(new_chapters)
+            print(output)
+            Path("output/text-stats-comment.md").write_text(output)
+
+    print(f"\nAnalyzed {len(new_chapters)} file(s)")
 
 
 if __name__ == "__main__":
