@@ -107,7 +107,6 @@ Return a structured response with:
     result, llm_response = call_editorial_structured(
         prompt=task_prompt,
         response_model=DiscoveryQuestions,
-        max_tokens=16384,
     )
 
     return result, {

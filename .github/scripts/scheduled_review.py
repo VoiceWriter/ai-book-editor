@@ -133,7 +133,7 @@ Return your findings as JSON:
     )
 
     print("Calling LLM for full book analysis...")
-    llm_response = call_editorial(prompt, max_tokens=16384)
+    llm_response = call_editorial(prompt)
     response = llm_response.content
 
     # Parse issues

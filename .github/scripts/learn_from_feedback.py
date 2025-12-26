@@ -236,7 +236,7 @@ Format your response as:
 If there are no clear patterns or necessary changes, say so. Don't suggest changes for the sake of changes."""
 
     print("Analyzing feedback patterns (with chain-of-thought reasoning)...")
-    llm_response = call_editorial(prompt, max_tokens=16384)
+    llm_response = call_editorial(prompt)
     response = llm_response.content
 
     # Log the learning analysis reasoning
