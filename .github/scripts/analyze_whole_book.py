@@ -343,13 +343,13 @@ def main():
         analysis, llm_response = call_editorial_structured(
             prompt=prompt,
             response_model=WholeBookAnalysis,
-            max_tokens=8000,
+            max_tokens=16384,
         )
         print(f"Analysis complete: {llm_response.usage.format_compact()}")
     except Exception as e:
         print(f"Structured analysis failed, falling back to freeform: {e}")
         # Fallback to unstructured
-        llm_response = call_editorial(prompt, max_tokens=8000)
+        llm_response = call_editorial(prompt, max_tokens=16384)
         # Create a simple analysis comment from the freeform response
         analysis_comment = f"# Whole Book Analysis\n\n{llm_response.content}"
         set_output("analysis_comment", analysis_comment)

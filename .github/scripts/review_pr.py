@@ -128,7 +128,7 @@ Remember: You work FOR the author. Enhance their voice, don't replace it."""
 
     # Call LLM with reasoning enabled
     print("Calling LLM for PR review (with reasoning)...")
-    llm_response = call_editorial(prompt, max_tokens=8000)
+    llm_response = call_editorial(prompt, max_tokens=16384)
     print(f"LLM call complete: {llm_response.usage.format_compact()}")
     if llm_response.has_reasoning():
         print("Editorial reasoning captured for transparency")

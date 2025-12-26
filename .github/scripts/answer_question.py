@@ -114,7 +114,8 @@ Be conversational and helpful. If you need more context to answer well, say so.
 If their question relates to a specific part of the manuscript, reference it specifically."""
 
     print("Generating response...")
-    llm_response = call_editorial(prompt, max_tokens=4000)
+    # max_tokens must be greater than thinking.budget_tokens (which is ~10k)
+    llm_response = call_editorial(prompt, max_tokens=16384)
     print(f"Response generated: {llm_response.usage.format_compact()}")
 
     # Format response with reasoning

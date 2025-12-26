@@ -357,7 +357,7 @@ def infer_intent(
     intent, llm_response = call_editorial_structured(
         prompt=prompt,
         response_model=ConversationalIntent,
-        max_tokens=4000,
+        max_tokens=16384,
     )
 
     # Log the reasoning for learning and transparency
@@ -770,7 +770,7 @@ Return your response in this format:
 ### Integration Recommendation
 [How this content should fit - beginning/middle/end of chapter, or as new section]"""
 
-        llm_response = call_editorial(editorial_prompt, max_tokens=4000)
+        llm_response = call_editorial(editorial_prompt, max_tokens=16384)
         print(f"LLM call complete: {llm_response.usage.format_compact()}")
 
         # Extract the prepared content
