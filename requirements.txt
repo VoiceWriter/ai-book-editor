@@ -11,6 +11,9 @@ PyGithub>=2.1.1
 # Config/data handling
 pyyaml>=6.0
 
+# Text analysis (optional - for text-stats workflow)
+textstat>=0.7.3
+
 # Testing
 pytest>=8.0.0
 pytest-mock>=3.12.0
