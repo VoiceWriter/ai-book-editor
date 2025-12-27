@@ -243,10 +243,11 @@ Write a brief summary (under 500 words) capturing:
 Do NOT include any preamble. Start directly with the summary."""
 
     # Call LLM for summarization
+    # Note: max_tokens must be > thinking.budget_tokens for extended thinking models
     response = call_editorial(
         summary_prompt,
         system="You are a precise summarizer. Extract only the essential information.",
-        max_tokens=2000,
+        max_tokens=16000,
     )
 
     # HARD FACT EXTRACTION: Re-inject established facts explicitly
