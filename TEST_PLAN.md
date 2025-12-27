@@ -228,4 +228,76 @@ BS but I dont want to be too aggressive about saying that...
 
 ---
 
+## Phase 14: Context Management & State Tracking
+
+| Step | Action | Expected Result |
+|------|--------|-----------------|
+| 14.1 | Have 20+ back-and-forth exchanges in single issue | AI summarizes older conversation, keeps recent 3 exchanges verbatim |
+| 14.2 | Establish a fact: "My dog's name is Max" early in conversation | AI remembers Max in later exchanges without reminder |
+| 14.3 | Close an issue after productive conversation | Summary comment posted with established facts, decisions, and outstanding items |
+| 14.4 | Check `.ai-context/knowledge.jsonl` after closing | New entries from conversation persisted |
+| 14.5 | Open new issue and reference fact from closed issue | AI knows facts from knowledge base |
+| 14.6 | Create PR from voice memo issue | PR body includes text statistics, editorial reasoning, and context references |
+| 14.7 | Check PR body for "Decisions Made" section | Shows established facts and decisions from conversation |
+| 14.8 | Check PR body for "Outstanding Items" section | Shows unanswered questions if any |
+
+---
+
+## Scoring Summary
+
+| Phase | Tests | Passed | Failed | Notes |
+|-------|-------|--------|--------|-------|
+| 1. Day 1: Getting Started | 7 | | | |
+| 2. First Week: Capturing Ideas | 6 | | | |
+| 3. Building Chapters | 6 | | | |
+| 4. Working With Your Editor | 5 | | | |
+| 5. Switching Personas | 5 | | | |
+| 6. Ready to Revise | 5 | | | |
+| 7. Polish Phase | 5 | | | |
+| 8. Whole Book Review | 5 | | | |
+| 9. Ask the Editor | 4 | | | |
+| 10. Text Statistics | 5 | | | |
+| 11. Real Scenarios | 6 | | | |
+| 12. Long-Term Learning | 4 | | | |
+| 13. Edge Cases | 5 | | | |
+| 14. Context Management & State | 8 | | | |
+| **TOTAL** | **76** | | | |
+
+---
+
+## Sample Test Content
+
+### First Voice Memo (Day 1)
+```
+okay so this is me just talking through it dont clean it up yet this is
+for you as the editor to get the shape of it in your head i think the
+book should be about 300 pages maybe a little more maybe less but roughly
+that and split into 10 chapters that feels right not too many not too few
+enough room to breathe and go deep and chapter 1 is really about orientation
+its for the new dog owner who is overwhelmed and excited and tired already
+and doesnt know where to start...
+```
+
+### Messy Stream-of-Consciousness (Phase 4)
+```
+so the thing about bonding with your dog is like its not just treats
+right its about being present and like when youre on your phone and
+the dogs just sitting there waiting thats not bonding thats coexisting
+and I want people to understand that the first 3 months matter so much
+more than they think and also like the whole dominance thing is mostly
+BS but I dont want to be too aggressive about saying that...
+```
+
+### Test Personas
+- `margot` - Default, sharp, no-nonsense
+- `sage` - Nurturing, encouraging
+- `the-axe` - Brutal, cuts ruthlessly
+- `blueprint` - Structure-focused
+- `sterling` - Commercial/market-aware
+- `cheerleader` - Pure encouragement
+- `ivory-tower` - Literary/academic
+- `bestseller` - Maximum readability
+
+---
+
 **Upload `TEST_PLAN.csv` to Google Sheets to track progress.**
