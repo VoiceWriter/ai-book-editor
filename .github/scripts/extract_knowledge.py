@@ -16,8 +16,8 @@ from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from scripts.utils.github_client import get_github_client  # noqa: E402
 from scripts.utils.github_client import (
-    get_github_client,  # noqa: E402
     get_issue,
     get_issue_comments,
     get_repo,

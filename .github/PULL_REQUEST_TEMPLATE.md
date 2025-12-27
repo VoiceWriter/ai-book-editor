@@ -15,23 +15,86 @@
 <!-- Link to source issue if from voice memo -->
 Closes #
 
-## Editorial Context
+---
 
-### Discovery Phase (if applicable)
-<!-- What did you learn from discovery questions? -->
+## Text Analysis
 
-### Key Changes
-<!-- What are the main content changes? -->
+<!-- For AI-generated PRs, this section is auto-populated with statistics -->
 
-### Author Intent
-<!-- What was the author trying to achieve? -->
+| Metric | Value |
+|--------|-------|
+| Word Count | |
+| Reading Time | min |
+| Flesch Reading Ease | |
+| Grade Level | |
+| Avg Sentence Length | words |
+| Lexical Diversity | % |
+| Passive Voice | % |
+
+### Impact on Book
+
+<!-- How does this content affect the overall corpus? -->
+
+---
+
+## Structural Placement
+
+**Target:** `chapters/`
+
+**Why here?**
+<!-- Explain why this is the right location for this content -->
+
+**Related chapters:**
+<!-- List chapters with related content -->
+
+**Flow impact:**
+<!-- How does this affect the reading flow? -->
+
+---
+
+## Voice Preservation
+
+**Voice Score:** high / medium / low
+
+**Markers preserved:**
+<!-- Specific examples of author's voice maintained -->
+-
+
+**Transformations made:**
+<!-- What was changed and why -->
+-
+
+---
+
+## Discovery Context
+
+<!-- If applicable: What was learned during the discovery phase -->
+
+**Key learnings:**
+-
+
+---
+
+## Editorial Notes
+
+<!-- Editor's observations, concerns, and suggestions -->
+
+<details>
+<summary>Editorial Reasoning (click to expand)</summary>
+
+<!-- Chain of thought reasoning from the AI editor -->
+
+</details>
+
+---
 
 ## Checklist
 
-- [ ] Content preserves the author's voice
-- [ ] Changes align with EDITORIAL_GUIDELINES.md
-- [ ] Terminology matches GLOSSARY.md
-- [ ] Fits within book structure and themes
+- [ ] Content flows naturally in context
+- [ ] Author's voice is preserved
+- [ ] No redundancy with other sections
+- [ ] Formatting matches book style
+- [ ] Terminology aligns with glossary
 
 ## Request Review From
 

@@ -15,8 +15,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from scripts.utils.github_client import get_github_client  # noqa: E402
 from scripts.utils.github_client import (
-    get_github_client,  # noqa: E402
     get_repo,
     list_files_in_directory,
     read_file_content,

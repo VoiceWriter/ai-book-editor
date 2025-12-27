@@ -17,9 +17,7 @@ import argparse
 import json
 import os
 import re
-import sys
 from pathlib import Path
-from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -32,6 +30,7 @@ def get_textstat():
     global textstat
     if textstat is None:
         import textstat as ts
+
         textstat = ts
     return textstat
 
@@ -155,7 +154,7 @@ def detect_passive_voice(text: str) -> float:
     Looks for patterns like "was/were/been/being + past participle"
     """
     # Simple sentence splitting
-    sentences = re.split(r'[.!?]+', text)
+    sentences = re.split(r"[.!?]+", text)
     sentences = [s.strip() for s in sentences if s.strip()]
 
     if not sentences:
@@ -163,8 +162,8 @@ def detect_passive_voice(text: str) -> float:
 
     # Passive voice patterns: be-verb + optional adverb + past participle (-ed, -en, irregular)
     passive_patterns = [
-        r'\b(is|are|was|were|been|being|be)\b\s+\w*\s*(ed|en)\b',
-        r'\b(is|are|was|were|been|being)\b\s+(\w+ly\s+)?(made|done|given|taken|written|shown|known|seen|found|told|said|called|used|asked|left|put|set|kept|held|brought|thought|felt|become|begun|broken|chosen|driven|eaten|fallen|forgotten|frozen|gotten|grown|hidden|known|lain|ridden|risen|shaken|spoken|stolen|sworn|torn|woken|worn|written)\b',
+        r"\b(is|are|was|were|been|being|be)\b\s+\w*\s*(ed|en)\b",
+        r"\b(is|are|was|were|been|being)\b\s+(\w+ly\s+)?(made|done|given|taken|written|shown|known|seen|found|told|said|called|used|asked|left|put|set|kept|held|brought|thought|felt|become|begun|broken|chosen|driven|eaten|fallen|forgotten|frozen|gotten|grown|hidden|known|lain|ridden|risen|shaken|spoken|stolen|sworn|torn|woken|worn|written)\b",
     ]
 
     passive_count = 0
@@ -183,18 +182,43 @@ def count_adverbs(text: str) -> float:
 
     Simple heuristic - not all -ly words are adverbs, but good enough.
     """
-    words = re.findall(r'\b[a-zA-Z]+\b', text.lower())
+    words = re.findall(r"\b[a-zA-Z]+\b", text.lower())
 
     if not words:
         return 0.0
 
     # Words ending in -ly (excluding common non-adverbs)
-    non_adverbs = {'only', 'family', 'early', 'likely', 'lovely', 'lonely', 'ugly',
-                   'holy', 'daily', 'weekly', 'monthly', 'yearly', 'friendly',
-                   'elderly', 'lively', 'costly', 'deadly', 'silly', 'reply',
-                   'apply', 'supply', 'fly', 'july', 'italy', 'ally', 'bully', 'belly'}
+    non_adverbs = {
+        "only",
+        "family",
+        "early",
+        "likely",
+        "lovely",
+        "lonely",
+        "ugly",
+        "holy",
+        "daily",
+        "weekly",
+        "monthly",
+        "yearly",
+        "friendly",
+        "elderly",
+        "lively",
+        "costly",
+        "deadly",
+        "silly",
+        "reply",
+        "apply",
+        "supply",
+        "fly",
+        "july",
+        "italy",
+        "ally",
+        "bully",
+        "belly",
+    }
 
-    adverb_count = sum(1 for w in words if w.endswith('ly') and w not in non_adverbs and len(w) > 3)
+    adverb_count = sum(1 for w in words if w.endswith("ly") and w not in non_adverbs and len(w) > 3)
 
     return (adverb_count / len(words)) * 100
 
@@ -287,23 +311,31 @@ def interpret_stats(stats: TextStats) -> ChapterStats:
 
     # Sentence length
     if stats.avg_sentence_length > 25:
-        suggestions.append(f"Avg sentence length is {stats.avg_sentence_length} words - consider shorter sentences")
+        suggestions.append(
+            f"Avg sentence length is {stats.avg_sentence_length} words - consider shorter sentences"
+        )
     elif stats.avg_sentence_length < 10:
         suggestions.append("Sentences are quite short - consider varying length for rhythm")
 
     # Passive voice
     if stats.passive_voice_percent > 20:
-        suggestions.append(f"Passive voice at {stats.passive_voice_percent}% - consider more active constructions")
+        suggestions.append(
+            f"Passive voice at {stats.passive_voice_percent}% - consider more active constructions"
+        )
 
     # Lexical diversity
     if stats.lexical_diversity < 0.4:
-        suggestions.append(f"Lexical diversity is {stats.lexical_diversity:.0%} - vocabulary may be repetitive")
+        suggestions.append(
+            f"Lexical diversity is {stats.lexical_diversity:.0%} - vocabulary may be repetitive"
+        )
     elif stats.lexical_diversity > 0.7:
         interpretations.append("Rich vocabulary variety")
 
     # Adverbs
     if stats.adverb_percent > 5:
-        suggestions.append(f"Adverb usage at {stats.adverb_percent}% - consider stronger verbs instead")
+        suggestions.append(
+            f"Adverb usage at {stats.adverb_percent}% - consider stronger verbs instead"
+        )
 
     interpretation = ". ".join(interpretations)
 
@@ -337,10 +369,14 @@ def aggregate_stats(stats_list: list[TextStats]) -> AggregateStats:
         weighted_fkg = sum(s.flesch_kincaid_grade * s.word_count for s in stats_list) / total_words
         weighted_sent = sum(s.avg_sentence_length * s.word_count for s in stats_list) / total_words
         weighted_lex = sum(s.lexical_diversity * s.word_count for s in stats_list) / total_words
-        weighted_passive = sum(s.passive_voice_percent * s.word_count for s in stats_list) / total_words
+        weighted_passive = (
+            sum(s.passive_voice_percent * s.word_count for s in stats_list) / total_words
+        )
         weighted_adverb = sum(s.adverb_percent * s.word_count for s in stats_list) / total_words
     else:
-        weighted_fre = weighted_fkg = weighted_sent = weighted_lex = weighted_passive = weighted_adverb = 0
+        weighted_fre = weighted_fkg = weighted_sent = weighted_lex = weighted_passive = (
+            weighted_adverb
+        ) = 0
 
     return AggregateStats(
         file_count=n,
@@ -386,7 +422,9 @@ def compute_impact(
             )
 
         # Passive voice impact
-        passive_delta = combined_agg.avg_passive_voice_percent - corpus_agg.avg_passive_voice_percent
+        passive_delta = (
+            combined_agg.avg_passive_voice_percent - corpus_agg.avg_passive_voice_percent
+        )
         if abs(passive_delta) > 2:
             direction = "more" if passive_delta > 0 else "less"
             impact_summary.append(
@@ -430,8 +468,10 @@ def format_impact_comment(impact: ImpactAnalysis, new_chapters: list[ChapterStat
     lines.append("### New/Changed Content\n")
     for chapter in new_chapters:
         s = chapter.stats
-        lines.append(f"**`{s.file_path}`** — {s.word_count:,} words, "
-                     f"Flesch {s.flesch_reading_ease}, Grade {s.flesch_kincaid_grade}")
+        lines.append(
+            f"**`{s.file_path}`** — {s.word_count:,} words, "
+            f"Flesch {s.flesch_reading_ease}, Grade {s.flesch_kincaid_grade}"
+        )
 
     lines.append("")
 
@@ -452,24 +492,38 @@ def format_impact_comment(impact: ImpactAnalysis, new_chapters: list[ChapterStat
             return ""
         return " ↑" if diff > 0 else " ↓"
 
-    lines.append(f"| Words | {n.total_word_count:,} | {c.total_word_count:,} | "
-                 f"**{a.total_word_count:,}** |")
-    lines.append(f"| Flesch Reading Ease | {n.avg_flesch_reading_ease} | "
-                 f"{c.avg_flesch_reading_ease} | **{a.avg_flesch_reading_ease}**"
-                 f"{delta_arrow(a.avg_flesch_reading_ease, c.avg_flesch_reading_ease)} |")
-    lines.append(f"| Grade Level | {n.avg_flesch_kincaid_grade} | "
-                 f"{c.avg_flesch_kincaid_grade} | **{a.avg_flesch_kincaid_grade}**"
-                 f"{delta_arrow(a.avg_flesch_kincaid_grade, c.avg_flesch_kincaid_grade)} |")
-    lines.append(f"| Avg Sentence Length | {n.avg_sentence_length} | "
-                 f"{c.avg_sentence_length} | **{a.avg_sentence_length}**"
-                 f"{delta_arrow(a.avg_sentence_length, c.avg_sentence_length)} |")
-    lines.append(f"| Lexical Diversity | {n.avg_lexical_diversity:.0%} | "
-                 f"{c.avg_lexical_diversity:.0%} | **{a.avg_lexical_diversity:.0%}** |")
-    lines.append(f"| Passive Voice | {n.avg_passive_voice_percent}% | "
-                 f"{c.avg_passive_voice_percent}% | **{a.avg_passive_voice_percent}%**"
-                 f"{delta_arrow(a.avg_passive_voice_percent, c.avg_passive_voice_percent)} |")
-    lines.append(f"| Adverbs | {n.avg_adverb_percent}% | "
-                 f"{c.avg_adverb_percent}% | **{a.avg_adverb_percent}%** |")
+    lines.append(
+        f"| Words | {n.total_word_count:,} | {c.total_word_count:,} | "
+        f"**{a.total_word_count:,}** |"
+    )
+    lines.append(
+        f"| Flesch Reading Ease | {n.avg_flesch_reading_ease} | "
+        f"{c.avg_flesch_reading_ease} | **{a.avg_flesch_reading_ease}**"
+        f"{delta_arrow(a.avg_flesch_reading_ease, c.avg_flesch_reading_ease)} |"
+    )
+    lines.append(
+        f"| Grade Level | {n.avg_flesch_kincaid_grade} | "
+        f"{c.avg_flesch_kincaid_grade} | **{a.avg_flesch_kincaid_grade}**"
+        f"{delta_arrow(a.avg_flesch_kincaid_grade, c.avg_flesch_kincaid_grade)} |"
+    )
+    lines.append(
+        f"| Avg Sentence Length | {n.avg_sentence_length} | "
+        f"{c.avg_sentence_length} | **{a.avg_sentence_length}**"
+        f"{delta_arrow(a.avg_sentence_length, c.avg_sentence_length)} |"
+    )
+    lines.append(
+        f"| Lexical Diversity | {n.avg_lexical_diversity:.0%} | "
+        f"{c.avg_lexical_diversity:.0%} | **{a.avg_lexical_diversity:.0%}** |"
+    )
+    lines.append(
+        f"| Passive Voice | {n.avg_passive_voice_percent}% | "
+        f"{c.avg_passive_voice_percent}% | **{a.avg_passive_voice_percent}%**"
+        f"{delta_arrow(a.avg_passive_voice_percent, c.avg_passive_voice_percent)} |"
+    )
+    lines.append(
+        f"| Adverbs | {n.avg_adverb_percent}% | "
+        f"{c.avg_adverb_percent}% | **{a.avg_adverb_percent}%** |"
+    )
 
     lines.append("")
 
@@ -596,10 +650,12 @@ def main():
     parser = argparse.ArgumentParser(description="Analyze text statistics")
     parser.add_argument("--file", help="Specific file to analyze")
     parser.add_argument("--changed-only", action="store_true", help="Only analyze changed files")
-    parser.add_argument("--compare", action="store_true",
-                        help="Compare new content against existing corpus")
-    parser.add_argument("--output", choices=["comment", "json", "ai"], default="comment",
-                        help="Output format")
+    parser.add_argument(
+        "--compare", action="store_true", help="Compare new content against existing corpus"
+    )
+    parser.add_argument(
+        "--output", choices=["comment", "json", "ai"], default="comment", help="Output format"
+    )
     parser.add_argument("--chapters-dir", default="chapters", help="Directory containing chapters")
     args = parser.parse_args()
 
@@ -662,10 +718,14 @@ def main():
             # Format for AI context
             lines = ["## Pre-computed Text Statistics with Corpus Comparison\n"]
             lines.append("Use these metrics to inform your feedback:\n")
-            lines.append(f"**New content:** {impact.new_content.total_word_count:,} words, "
-                         f"Flesch {impact.new_content.avg_flesch_reading_ease}")
-            lines.append(f"**Existing corpus:** {impact.existing_corpus.total_word_count:,} words, "
-                         f"Flesch {impact.existing_corpus.avg_flesch_reading_ease}")
+            lines.append(
+                f"**New content:** {impact.new_content.total_word_count:,} words, "
+                f"Flesch {impact.new_content.avg_flesch_reading_ease}"
+            )
+            lines.append(
+                f"**Existing corpus:** {impact.existing_corpus.total_word_count:,} words, "
+                f"Flesch {impact.existing_corpus.avg_flesch_reading_ease}"
+            )
             lines.append(f"**After adding:** Flesch {impact.combined.avg_flesch_reading_ease}")
             lines.append("\n**Impact:**")
             for stmt in impact.impact_summary:

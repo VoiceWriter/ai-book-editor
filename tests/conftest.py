@@ -1,10 +1,14 @@
 """Shared pytest fixtures for AI Book Editor tests."""
 
 import json
+import sys
 from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+
+# Add scripts path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent / ".github" / "scripts"))
 
 
 @pytest.fixture
@@ -72,11 +76,11 @@ def mock_repo(sample_issue):
             return [chapter1, chapter2]
         elif path.startswith(".ai-context/"):
             if "knowledge.jsonl" in path:
-                content.decoded_content = (
-                    b'{"question": "What is the book about?", "answer": "Voice-to-text workflows"}'
-                )
+                content.decoded_content = b'{"question": "What is the book about?", "answer": "Voice-to-text workflows"}'
             elif "terminology.yaml" in path:
-                content.decoded_content = b"voice memo: voice memo\ntranscript: transcript"
+                content.decoded_content = (
+                    b"voice memo: voice memo\ntranscript: transcript"
+                )
             elif "themes.yaml" in path:
                 content.decoded_content = b"- productivity\n- writing workflows"
             elif "author-preferences.yaml" in path:
@@ -105,7 +109,10 @@ def sample_knowledge_base():
     """Sample knowledge base data."""
     return {
         "qa_pairs": [
-            {"question": "What is the book about?", "answer": "Voice-to-text workflows for writers"}
+            {
+                "question": "What is the book about?",
+                "answer": "Voice-to-text workflows for writers",
+            }
         ],
         "terminology": {"voice memo": "voice memo", "transcript": "transcript"},
         "themes": ["productivity", "writing workflows", "developer tools"],

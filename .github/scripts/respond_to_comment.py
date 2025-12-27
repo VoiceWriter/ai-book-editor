@@ -32,6 +32,22 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from scripts.utils.context_management import (  # noqa: E402
+    count_tokens,
+    prepare_conversation_context,
+)
+from scripts.utils.conversation_state import (  # noqa: E402
+    ConversationState,
+    compact_state,
+    extract_questions_from_response,
+    format_closing_summary,
+    format_outstanding_questions_reminder,
+    format_prerequisite_blocker,
+    get_default_prerequisites,
+    parse_state_from_body,
+    persist_to_knowledge_base,
+    update_issue_body_with_state,
+)
 from scripts.utils.github_client import close_issue  # noqa: E402
 from scripts.utils.github_client import (
     add_labels,
@@ -46,11 +62,66 @@ from scripts.utils.github_client import (
 )
 from scripts.utils.knowledge_base import load_editorial_context  # noqa: E402
 from scripts.utils.llm_client import ConversationalIntent  # noqa: E402
-from scripts.utils.llm_client import LLMResponse, call_editorial, call_editorial_structured
-from scripts.utils.persona import format_persona_list, parse_persona_command  # noqa: E402
+from scripts.utils.llm_client import (
+    LLMResponse,
+    call_editorial,
+    call_editorial_structured,
+)
+from scripts.utils.persona import format_persona_list  # noqa: E402
+from scripts.utils.persona import parse_persona_command
 from scripts.utils.phases import EditorialPhase  # noqa: E402
-from scripts.utils.phases import PHASE_LABELS, detect_emotional_state, extract_knowledge_items
+from scripts.utils.phases import (
+    PHASE_LABELS,
+    detect_emotional_state,
+    extract_knowledge_items,
+)
+from scripts.utils.pr_body import build_rich_pr_body  # noqa: E402
+from scripts.utils.pr_body import format_rich_pr_body
 from scripts.utils.reasoning_log import get_actions_logger  # noqa: E402
+
+
+def prepare_conversation_for_llm(
+    issue_body: str,
+    comments: list,
+    system_prompt: str,
+    established_facts: list[str] = None,
+    max_output: int = 8000,
+) -> tuple[str, int]:
+    """
+    Prepare conversation context with context window management.
+
+    Returns (conversation_text, tokens_used).
+    Automatically summarizes long conversations to fit within budget.
+    """
+    # Format comments for context management
+    formatted_comments = [
+        {"user": c.get("user", "unknown"), "body": c.get("body", "")} for c in comments
+    ]
+
+    # Get budget and prepare context
+    try:
+        _, conversation_text, budget = prepare_conversation_context(
+            comments=formatted_comments,
+            system_prompt=system_prompt,
+            current_content=issue_body or "",
+            established_facts=established_facts,
+            max_output=max_output,
+        )
+
+        print(
+            f"Context budget: {budget.total_used():,}/{budget.available_input:,} tokens "
+            f"(system: {budget.system_tokens:,}, conv: {budget.conversation_tokens:,}, "
+            f"content: {budget.content_tokens:,})"
+        )
+
+        return conversation_text, budget.conversation_tokens
+    except Exception as e:
+        # Fallback to simple formatting if context management fails
+        print(f"Warning: Context management failed, using fallback: {e}")
+        conv_text = "\n\n".join(
+            f"**{c.get('user', 'unknown')}:** {c.get('body', '')[:800]}" for c in comments
+        )
+        return conv_text, count_tokens(conv_text)
 
 
 def set_output(name: str, value: str):
@@ -245,13 +316,28 @@ def build_intent_prompt(
     comment_body: str,
     issue_number: int,
     editorial_context: dict = None,
+    conversation_state: ConversationState = None,
 ) -> str:
     """Build prompt for inferring user intent from conversation."""
-    # Build conversation history
-    history = f"**Original transcript/issue body:**\n{issue.body}\n\n"
-    for c in comments:
-        role = "Author" if c["user"] != "github-actions[bot]" else "AI Editor"
-        history += f"**{role}:**\n{c['body'][:800]}\n\n"
+    # Build conversation history with context management
+    system_prompt = "You are an AI book editor assistant."
+    established_facts = []
+    if conversation_state:
+        established_facts = [f"{fact.key}: {fact.value}" for fact in conversation_state.established]
+
+    conversation_text, tokens_used = prepare_conversation_for_llm(
+        issue_body=issue.body or "",
+        comments=comments,
+        system_prompt=system_prompt,
+        established_facts=established_facts,
+    )
+
+    history = (
+        f"**Original transcript/issue body:**\n{issue.body[:2000]}...\n\n"
+        if len(issue.body or "") > 2000
+        else f"**Original transcript/issue body:**\n{issue.body}\n\n"
+    )
+    history += f"**Conversation history ({tokens_used:,} tokens):**\n{conversation_text}"
 
     # Get current issue state
     labels = [lbl.name for lbl in issue.labels]
@@ -319,6 +405,7 @@ def infer_intent(
     comment_body: str,
     issue_number: int,
     repo=None,
+    conversation_state: ConversationState = None,
 ) -> tuple[ConversationalIntent, LLMResponse]:
     """
     Use LLM to infer user intent from conversation.
@@ -352,6 +439,7 @@ def infer_intent(
         comment_body=comment_body,
         issue_number=issue_number,
         editorial_context=editorial_context,
+        conversation_state=conversation_state,
     )
 
     intent, llm_response = call_editorial_structured(
@@ -408,13 +496,27 @@ def infer_intent(
 
 
 def execute_issue_actions(
-    issue, repo, intent: ConversationalIntent, issue_number: int
+    issue,
+    repo,
+    intent: ConversationalIntent,
+    issue_number: int,
+    conversation_state: ConversationState = None,
 ) -> list[str]:
     """Execute issue actions and return list of actions taken."""
     actions_taken = []
 
     for action in intent.issue_actions:
         if action.action == "close":
+            # Post summary comment before closing
+            if conversation_state:
+                reason = action.close_reason or "completed"
+                summary = format_closing_summary(conversation_state, reason=reason)
+                try:
+                    issue.create_comment(summary)
+                    print("Posted closing summary comment")
+                except Exception as e:
+                    print(f"Warning: Could not post summary comment: {e}")
+
             close_issue(issue)
             reason = action.close_reason or "completed"
             actions_taken.append(f"Closed issue (reason: {reason})")
@@ -468,6 +570,18 @@ def main():
     repo = get_repo(gh)
     issue = get_issue(repo, issue_number)
     comments = get_issue_comments(issue)
+
+    # Load conversation state from issue body
+    conversation_state = parse_state_from_body(issue.body or "", issue_number)
+    print(
+        f"Loaded state: {len(conversation_state.outstanding_questions)} questions, "
+        f"{len(conversation_state.prerequisites)} prerequisites"
+    )
+
+    # Initialize default prerequisites if this is a new conversation
+    if not conversation_state.prerequisites:
+        for prereq in get_default_prerequisites():
+            conversation_state.add_prerequisite(prereq.requirement)
 
     # Ensure output directory exists
     Path("output").mkdir(exist_ok=True)
@@ -564,9 +678,16 @@ def main():
 
     print("Inferring user intent from conversation...")
 
-    # Use LLM to infer intent (with editorial context)
+    # Use LLM to infer intent (with editorial context and conversation state)
     try:
-        intent, llm_response = infer_intent(issue, comments, comment_body, issue_number, repo=repo)
+        intent, llm_response = infer_intent(
+            issue,
+            comments,
+            comment_body,
+            issue_number,
+            repo=repo,
+            conversation_state=conversation_state,
+        )
         print(f"Intent inferred: confidence={intent.confidence}, understood={intent.understood}")
         print(f"LLM usage: {llm_response.usage.format_compact()}")
     except Exception as e:
@@ -644,7 +765,7 @@ Reply with:
             return
 
     # Execute non-PR actions first
-    actions_taken = execute_issue_actions(issue, repo, intent, issue_number)
+    actions_taken = execute_issue_actions(issue, repo, intent, issue_number, conversation_state)
     if actions_taken:
         print(f"Actions executed: {', '.join(actions_taken)}")
 
@@ -675,6 +796,44 @@ Reply with:
     # === Handle explicit @margot-ai-editor create PR or inferred create_pr ===
     if "@margot-ai-editor create pr" in comment_lower or has_create_pr:
         print("Preparing PR creation...")
+
+        # Auto-detect if prerequisites are met based on conversation
+        # Check for cleaned transcript (indicates content has been written)
+        cleaned_transcript = extract_cleaned_transcript(comments)
+        if cleaned_transcript and len(cleaned_transcript) > 200:
+            conversation_state.mark_prerequisite_met("content written")
+            conversation_state.mark_prerequisite_met("outline")  # Implied by having content
+            print("Auto-marking prerequisites met: substantial content found")
+
+        # Check for established facts (indicates discovery is complete)
+        if len(conversation_state.established) >= 2:
+            conversation_state.mark_prerequisite_met("outline")
+            print("Auto-marking outline met: sufficient context established")
+
+        # Check prerequisites before allowing PR creation
+        blocker_message = format_prerequisite_blocker(conversation_state)
+        if blocker_message:
+            print("PR creation blocked by prerequisites")
+            set_output("create_pr", "false")
+            set_output("response_comment", blocker_message)
+
+            # Persist facts and compact state before updating issue
+            try:
+                persist_to_knowledge_base(conversation_state)
+            except Exception as e:
+                print(f"Warning: Could not persist to knowledge base: {e}")
+
+            conversation_state = compact_state(conversation_state)
+
+            # Update state in issue body
+            try:
+                new_body = update_issue_body_with_state(issue.body or "", conversation_state)
+                issue.edit(body=new_body)
+                print("Updated issue body with conversation state")
+            except Exception as e:
+                print(f"Warning: Could not update issue body: {e}")
+
+            return
 
         # Determine target file - from intent, conversation, or ask
         target_filename = target_file_from_intent
@@ -716,13 +875,25 @@ Reply with:
             read_file_content(repo, target_path) if target_filename != "uncategorized.md" else None
         )
 
-        # Build conversation history for context
-        history = f"**Original voice memo:**\n{issue.body}\n\n"
-        for c in comments:
-            history += f"**{c['user']}:** {c['body'][:1000]}\n\n"
+        # Build conversation history with context management
+        # Use established facts to help summarization preserve important context
+        established_facts = [f"{fact.key}: {fact.value}" for fact in conversation_state.established]
+        conversation_history, conv_tokens = prepare_conversation_for_llm(
+            issue_body=issue.body or "",
+            comments=comments,
+            system_prompt="You are a professional book editor preparing content.",
+            established_facts=established_facts,
+            max_output=16000,  # Higher for content generation
+        )
+        history = (
+            f"**Original voice memo:**\n{issue.body[:3000]}\n\n"
+            if len(issue.body or "") > 3000
+            else f"**Original voice memo:**\n{issue.body}\n\n"
+        )
+        history += f"**Conversation history ({conv_tokens:,} tokens):**\n{conversation_history}"
 
         # Call LLM to prepare editorial-quality content
-        print("Calling LLM to prepare editorial content...")
+        print(f"Calling LLM to prepare editorial content (conversation: {conv_tokens:,} tokens)...")
 
         # Build prompt sections
         persona_section = (
@@ -802,10 +973,53 @@ Return your response in this format:
         set_output("target_file", target_path)
         set_output("scope", target_filename.replace(".md", ""))
 
-        # Format reasoning section
-        reasoning_section = llm_response.format_editorial_explanation()
+        # Extract editorial notes from LLM response
+        editorial_notes = ""
+        if "### Editorial Notes" in response_text:
+            notes_match = re.search(
+                r"### Editorial Notes\s*\n(.*?)(?=### Integration|\Z)",
+                response_text,
+                re.DOTALL,
+            )
+            if notes_match:
+                editorial_notes = notes_match.group(1).strip()
 
-        pr_body = f"""## Editorial Integration
+        # Extract integration recommendation
+        content_summary = ""
+        if "### Integration Recommendation" in response_text:
+            rec_match = re.search(
+                r"### Integration Recommendation\s*\n(.*?)(?=###|\Z)",
+                response_text,
+                re.DOTALL,
+            )
+            if rec_match:
+                content_summary = rec_match.group(1).strip()
+        if not content_summary:
+            # Fallback: first 200 chars of prepared content
+            content_summary = (
+                prepared_content[:200] + "..." if len(prepared_content) > 200 else prepared_content
+            )
+
+        # Build rich PR body with all analysis
+        try:
+            rich_pr = build_rich_pr_body(
+                source_issue=issue_number,
+                target_file=target_path,
+                prepared_content=prepared_content,
+                llm_response=llm_response,
+                editorial_notes=editorial_notes or "Content prepared for integration.",
+                content_summary=content_summary,
+                discovery_context=None,  # TODO: Pass discovery context when available
+                existing_chapter_content=existing_chapter,
+                chapters_list=context.get("chapters", []),
+                conversation_state=conversation_state,  # Include decisions & outstanding items
+            )
+            pr_body = format_rich_pr_body(rich_pr)
+        except Exception as e:
+            # Fallback to simple format if rich body fails
+            print(f"Warning: Rich PR body generation failed: {e}")
+            reasoning_section = llm_response.format_editorial_explanation()
+            pr_body = f"""## Editorial Integration
 
 **Target:** `{target_path}`
 **Source:** Issue #{issue_number}
@@ -818,20 +1032,14 @@ Return your response in this format:
 
 {reasoning_section}
 
-### Editorial Checklist
-
-- [ ] Content flows naturally in context
-- [ ] Author's voice is preserved
-- [ ] No redundancy with other sections
-- [ ] Formatting matches book style
-
----
-
 <sub>{llm_response.usage.format_summary()}</sub>"""
 
+        # Write PR body to file for reliable multiline handling
+        Path("output/pr-body.md").write_text(pr_body + f"\n\n---\n\nCloses #{issue_number}")
         set_output("pr_body", pr_body)
 
-        # Response comment with full editorial info
+        # Response comment with summary
+        reasoning_section = llm_response.format_editorial_explanation()
         response_comment = f"""Creating PR to integrate content into `{target_path}`.
 
 {reasoning_section}
@@ -859,6 +1067,27 @@ Return your response in this format:
     if intent.response_text:
         response_parts.append(intent.response_text)
 
+        # Extract questions from response and add to state
+        new_questions = extract_questions_from_response(intent.response_text)
+        for q in new_questions:
+            conversation_state.add_question(q)
+            print(f"Tracking new question: {q[:50]}...")
+
+    # Check if the author's comment answers any outstanding questions
+    # Simple heuristic: if they answer in depth (>100 chars), mark related questions
+    if len(comment_body) > 100:
+        for q in conversation_state.outstanding_questions:
+            # Check if any key words from the question appear in the response
+            key_words = [w.lower() for w in q.question.split() if len(w) > 4]
+            if any(kw in comment_body.lower() for kw in key_words[:3]):
+                q.answered = True
+                print(f"Marking question as answered: {q.question[:50]}...")
+
+    # Add outstanding questions reminder if any remain
+    reminder = format_outstanding_questions_reminder(conversation_state)
+    if reminder:
+        response_parts.append(reminder)
+
     # Add usage info
     reasoning_section = llm_response.format_editorial_explanation()
     if reasoning_section:
@@ -867,6 +1096,27 @@ Return your response in this format:
     response_parts.append(f"<sub>{llm_response.usage.format_summary()}</sub>")
 
     full_response = "\n\n".join(response_parts)
+
+    # Persist established facts to project-wide knowledge base
+    # This enables cross-issue memory
+    try:
+        facts_written = persist_to_knowledge_base(conversation_state)
+        if facts_written > 0:
+            print(f"Cross-issue memory: {facts_written} facts now available to other issues")
+    except Exception as e:
+        print(f"Warning: Could not persist to knowledge base: {e}")
+
+    # Compact state: remove answered questions and met prerequisites
+    # They're archived in git history and can be retrieved if needed
+    conversation_state = compact_state(conversation_state)
+
+    # Update state in issue body
+    try:
+        new_body = update_issue_body_with_state(issue.body or "", conversation_state)
+        issue.edit(body=new_body)
+        print("Updated issue body with conversation state")
+    except Exception as e:
+        print(f"Warning: Could not update issue body: {e}")
 
     set_output("create_pr", "false")
     set_output("response_comment", full_response)

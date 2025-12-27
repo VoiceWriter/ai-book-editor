@@ -73,19 +73,7 @@ jobs:
             Editorial-type: addition
           branch: voice-memo/issue-${{ github.event.issue.number }}
           title: "Voice memo: ${{ github.event.issue.title }}"
-          body: |
-            ## Voice Memo Integration
-
-            **Source:** #${{ github.event.issue.number }}
-            **Target:** `${{ steps.process.outputs.target_file }}`
-
-            ---
-
-            ${{ steps.process.outputs.pr_body }}
-
-            ---
-
-            Closes #${{ github.event.issue.number }}
+          body-path: .ai-book-editor/output/pr-body.md
           labels: |
             voice-memo
             ai-generated
