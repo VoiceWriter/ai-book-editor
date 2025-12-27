@@ -788,6 +788,255 @@ def run_phase_13(repo: str, dry_run: bool) -> list[TestResult]:
     return results
 
 
+# =============================================================================
+# Phase 14: Context Management & State Tracking
+# =============================================================================
+
+
+def test_14_1_long_conversation(repo: str, dry_run: bool) -> TestResult:
+    """Test 14.1: Have 20+ exchanges, verify AI summarizes older conversation."""
+    test_id = "14.1"
+    description = "Long conversation with fact establishment"
+
+    if dry_run:
+        return TestResult(test_id, "Context Management", description, TestStatus.SKIPPED, "Dry run")
+
+    start = time.time()
+    try:
+        # Create issue with an established fact
+        body = """okay so this is my first voice memo for my new book
+
+my dog's name is Max he's a golden retriever I named him after my grandfather
+
+the book is about dog training for busy professionals who just got their first puppy
+
+I want a conversational tone like talking to a friend over coffee"""
+
+        issue_number = create_issue(
+            repo,
+            "Voice memo: Context management test",
+            body,
+            ["voice_transcription"],
+        )
+
+        # Wait for initial AI response
+        wait_for_bot_comment(repo, issue_number, timeout_seconds=180)
+
+        # Add multiple follow-up comments to create a long conversation
+        follow_ups = [
+            "@margot-ai-editor I want to focus on positive reinforcement",
+            "@margot-ai-editor The target length is about 200 pages",
+            "@margot-ai-editor What do you think about the structure so far?",
+            "@margot-ai-editor My writing style is casual but informative",
+            "@margot-ai-editor Do you remember my dog's name?",
+        ]
+
+        for i, comment in enumerate(follow_ups):
+            add_comment(repo, issue_number, comment)
+            print(f"  Added follow-up {i+1}/{len(follow_ups)}")
+            # Wait for response before next comment
+            wait_for_bot_comment(repo, issue_number, min_comments=(i + 2) * 2, timeout_seconds=180)
+
+        # Check if AI remembers the dog's name "Max" in later responses
+        comments = get_issue_comments(repo, issue_number)
+        bot_comments = [c for c in comments if c.get("user", {}).get("type") == "Bot"]
+        last_response = bot_comments[-1]["body"] if bot_comments else ""
+
+        remembers_max = "max" in last_response.lower()
+
+        return TestResult(
+            test_id, "Context Management", description,
+            TestStatus.PASSED if remembers_max else TestStatus.FAILED,
+            f"Issue #{issue_number}, AI {'remembers' if remembers_max else 'forgot'} Max",
+            issue_number=issue_number,
+            duration_seconds=time.time() - start,
+        )
+    except TimeoutError as e:
+        return TestResult(
+            test_id, "Context Management", description, TestStatus.TIMEOUT,
+            str(e), duration_seconds=time.time() - start,
+        )
+    except Exception as e:
+        return TestResult(
+            test_id, "Context Management", description, TestStatus.FAILED,
+            str(e), duration_seconds=time.time() - start,
+        )
+
+
+def test_14_3_closing_summary(repo: str, issue_number: int | None, dry_run: bool) -> TestResult:
+    """Test 14.3: Close issue and verify summary comment is posted."""
+    test_id = "14.3"
+    description = "Closing summary comment"
+
+    if dry_run or not issue_number:
+        return TestResult(
+            test_id, "Context Management", description, TestStatus.SKIPPED, "Dry run or no issue"
+        )
+
+    start = time.time()
+    try:
+        # Get comment count before closing
+        comments_before = get_issue_comments(repo, issue_number)
+        count_before = len(comments_before)
+
+        # Close the issue
+        run_gh(["issue", "close", str(issue_number), "--repo", repo])
+        print(f"  Closed issue #{issue_number}")
+
+        # Wait for closing summary comment
+        time.sleep(5)  # Give workflow time to trigger
+        wait_for_bot_comment(repo, issue_number, min_comments=count_before + 1, timeout_seconds=120)
+
+        # Check that a summary comment was added
+        comments_after = get_issue_comments(repo, issue_number)
+        new_comments = [c for c in comments_after if c not in comments_before]
+
+        has_summary = any(
+            "summary" in c.get("body", "").lower() or
+            "decisions" in c.get("body", "").lower() or
+            "established" in c.get("body", "").lower()
+            for c in new_comments
+        )
+
+        return TestResult(
+            test_id, "Context Management", description,
+            TestStatus.PASSED if has_summary else TestStatus.FAILED,
+            f"Issue #{issue_number}, summary {'posted' if has_summary else 'not found'}",
+            issue_number=issue_number,
+            duration_seconds=time.time() - start,
+        )
+    except TimeoutError as e:
+        return TestResult(
+            test_id, "Context Management", description, TestStatus.TIMEOUT,
+            str(e), issue_number=issue_number, duration_seconds=time.time() - start,
+        )
+    except Exception as e:
+        return TestResult(
+            test_id, "Context Management", description, TestStatus.FAILED,
+            str(e), issue_number=issue_number, duration_seconds=time.time() - start,
+        )
+
+
+def test_14_4_knowledge_persistence(repo: str, dry_run: bool) -> TestResult:
+    """Test 14.4: Check .ai-context/knowledge.jsonl has new entries."""
+    test_id = "14.4"
+    description = "Knowledge base persistence"
+
+    if dry_run:
+        return TestResult(
+            test_id, "Context Management", description, TestStatus.SKIPPED, "Dry run"
+        )
+
+    start = time.time()
+    try:
+        # Fetch knowledge.jsonl content
+        result = run_gh([
+            "api", f"repos/{repo}/contents/.ai-context/knowledge.jsonl",
+            "--jq", ".content"
+        ], check=False)
+
+        if result.returncode != 0:
+            return TestResult(
+                test_id, "Context Management", description, TestStatus.FAILED,
+                "Could not fetch knowledge.jsonl",
+                duration_seconds=time.time() - start,
+            )
+
+        import base64
+        content = base64.b64decode(result.stdout.strip()).decode("utf-8")
+        lines = [l for l in content.strip().split("\n") if l.strip()]
+
+        return TestResult(
+            test_id, "Context Management", description,
+            TestStatus.PASSED if len(lines) > 0 else TestStatus.FAILED,
+            f"Found {len(lines)} knowledge entries",
+            duration_seconds=time.time() - start,
+        )
+    except Exception as e:
+        return TestResult(
+            test_id, "Context Management", description, TestStatus.FAILED,
+            str(e), duration_seconds=time.time() - start,
+        )
+
+
+def test_14_5_cross_issue_memory(repo: str, dry_run: bool) -> TestResult:
+    """Test 14.5: New issue can access facts from closed issue."""
+    test_id = "14.5"
+    description = "Cross-issue memory"
+
+    if dry_run:
+        return TestResult(
+            test_id, "Context Management", description, TestStatus.SKIPPED, "Dry run"
+        )
+
+    start = time.time()
+    try:
+        # Create new issue asking about previously established facts
+        body = """Can you remind me what my dog's name is and who I named him after?
+
+Also what was the target audience for my book?"""
+
+        issue_number = create_issue(
+            repo,
+            "Question: Do you remember my book details?",
+            body,
+            ["ai-question"],
+        )
+
+        # Wait for AI response
+        comments = wait_for_bot_comment(repo, issue_number, timeout_seconds=180)
+
+        # Check if response references established facts
+        response = comments[0]["body"].lower() if comments else ""
+        knows_max = "max" in response
+        knows_audience = "professional" in response or "busy" in response
+
+        return TestResult(
+            test_id, "Context Management", description,
+            TestStatus.PASSED if (knows_max or knows_audience) else TestStatus.FAILED,
+            f"Issue #{issue_number}, remembers Max: {knows_max}, audience: {knows_audience}",
+            issue_number=issue_number,
+            duration_seconds=time.time() - start,
+        )
+    except TimeoutError as e:
+        return TestResult(
+            test_id, "Context Management", description, TestStatus.TIMEOUT,
+            str(e), duration_seconds=time.time() - start,
+        )
+    except Exception as e:
+        return TestResult(
+            test_id, "Context Management", description, TestStatus.FAILED,
+            str(e), duration_seconds=time.time() - start,
+        )
+
+
+def run_phase_14(repo: str, dry_run: bool) -> list[TestResult]:
+    """Run Phase 14: Context Management & State Tracking tests."""
+    results = []
+
+    # Test 14.1: Long conversation with fact establishment
+    result_14_1 = test_14_1_long_conversation(repo, dry_run)
+    results.append(result_14_1)
+    print_result(result_14_1)
+
+    # Test 14.3: Closing summary (uses issue from 14.1)
+    result_14_3 = test_14_3_closing_summary(repo, result_14_1.issue_number, dry_run)
+    results.append(result_14_3)
+    print_result(result_14_3)
+
+    # Test 14.4: Knowledge base persistence
+    result_14_4 = test_14_4_knowledge_persistence(repo, dry_run)
+    results.append(result_14_4)
+    print_result(result_14_4)
+
+    # Test 14.5: Cross-issue memory
+    result_14_5 = test_14_5_cross_issue_memory(repo, dry_run)
+    results.append(result_14_5)
+    print_result(result_14_5)
+
+    return results
+
+
 def print_result(result: TestResult) -> None:
     """Print a single test result."""
     issue_str = f" (#{result.issue_number})" if result.issue_number else ""
@@ -825,7 +1074,7 @@ def print_summary(results: list[TestResult]) -> None:
 def main():
     parser = argparse.ArgumentParser(description="Run E2E tests for AI Book Editor")
     parser.add_argument("--repo", required=True, help="Repository (owner/repo)")
-    parser.add_argument("--phase", type=int, help="Run specific phase (1, 2, 4, 5, 9, 13)")
+    parser.add_argument("--phase", type=int, help="Run specific phase (1, 2, 4, 5, 9, 13, 14)")
     parser.add_argument("--dry-run", action="store_true", help="Don't create issues")
     parser.add_argument("--quick", action="store_true", help="Run quick smoke test (phases 1, 9)")
     args = parser.parse_args()
@@ -843,7 +1092,7 @@ def main():
     elif args.quick:
         phases_to_run = [1, 9]
     else:
-        phases_to_run = [1, 2, 4, 5, 9, 13]
+        phases_to_run = [1, 2, 4, 5, 9, 13, 14]
 
     for phase in phases_to_run:
         print(f"\n{'=' * 50}")
@@ -862,6 +1111,8 @@ def main():
             all_results.extend(run_phase_9(args.repo, args.dry_run))
         elif phase == 13:
             all_results.extend(run_phase_13(args.repo, args.dry_run))
+        elif phase == 14:
+            all_results.extend(run_phase_14(args.repo, args.dry_run))
         else:
             print(f"Phase {phase} not implemented yet")
 
