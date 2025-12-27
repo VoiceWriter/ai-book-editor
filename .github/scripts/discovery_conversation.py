@@ -260,7 +260,7 @@ def main():
 
     # Load editorial context to get persona
     context = load_editorial_context(repo, labels=labels)
-    persona_id = context.get("persona_id", "margot")
+    persona_id = context.get("persona_id") or "margot"  # Default to margot if None
 
     print(f"Generating discovery questions with persona: {persona_id}")
 
