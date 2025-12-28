@@ -4,9 +4,10 @@ on:
   issue_comment:
     types: [created]
 
-# Prevent race conditions: only one workflow per issue at a time
+# Prevent race conditions: share concurrency group with respond-to-feedback
+# All comment handlers for same issue queue together
 concurrency:
-  group: discovery-response-${{ github.event.issue.number }}
+  group: issue-comments-${{ github.event.issue.number }}
   cancel-in-progress: false  # Queue, don't cancel
 
 permissions:

@@ -4,9 +4,10 @@ on:
   issues:
     types: [labeled]
 
-# Prevent race conditions: only one workflow per issue at a time
+# Prevent race conditions: share concurrency group with discovery.yml
+# Both trigger on voice_transcription label, only one should run
 concurrency:
-  group: process-transcription-${{ github.event.issue.number }}
+  group: issue-labeling-${{ github.event.issue.number }}
   cancel-in-progress: false  # Queue, don't cancel
 
 permissions:
