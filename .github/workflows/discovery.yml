@@ -4,6 +4,15 @@ on:
   issues:
     types: [labeled]
 
+# Prevent race conditions: only one workflow per issue at a time
+concurrency:
+  group: discovery-${{ github.event.issue.number }}
+  cancel-in-progress: false  # Queue, don't cancel
+
+permissions:
+  issues: write
+  contents: write
+
 jobs:
   discovery:
     # Only run on voice_transcription issues that haven't skipped discovery

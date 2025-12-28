@@ -4,6 +4,11 @@ on:
   issue_comment:
     types: [created]
 
+# Prevent race conditions: only one workflow per issue at a time
+concurrency:
+  group: respond-feedback-${{ github.event.issue.number }}
+  cancel-in-progress: false  # Queue, don't cancel - we want all comments processed
+
 permissions:
   issues: write
   contents: write

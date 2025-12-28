@@ -4,6 +4,16 @@ on:
   issues:
     types: [labeled]
 
+# Prevent race conditions: only one workflow per issue at a time
+concurrency:
+  group: process-transcription-${{ github.event.issue.number }}
+  cancel-in-progress: false  # Queue, don't cancel
+
+permissions:
+  issues: write
+  contents: write
+  pull-requests: write
+
 jobs:
   process:
     # Only process when voice_transcription label is added (not other labels)

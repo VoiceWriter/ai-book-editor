@@ -4,6 +4,15 @@ on:
   issue_comment:
     types: [created]
 
+# Prevent race conditions: only one workflow per issue at a time
+concurrency:
+  group: discovery-response-${{ github.event.issue.number }}
+  cancel-in-progress: false  # Queue, don't cancel
+
+permissions:
+  issues: write
+  contents: write
+
 jobs:
   process-discovery-response:
     # Run when author replies to discovery questions
