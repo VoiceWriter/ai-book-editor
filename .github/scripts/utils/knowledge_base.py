@@ -360,4 +360,8 @@ def load_editorial_context(
     else:
         context["book_phase"] = None
 
+    # Project state for holistic awareness (tracks open issues/PRs, chapter states)
+    # This is loaded lazily since it requires API calls
+    context["project_state"] = None  # Will be populated by get_project_context_for_prompt()
+
     return context

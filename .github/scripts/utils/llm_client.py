@@ -1027,12 +1027,21 @@ def build_editorial_system_prompt(
     glossary: Optional[str] = None,
     knowledge_base: Optional[str] = None,
     chapter_list: Optional[list] = None,
+    project_state: Optional[str] = None,
 ) -> str:
     """
     Build the CACHEABLE system prompt containing editorial context.
 
     This separates the static context (persona, guidelines, knowledge) from
     the dynamic task. The system prompt can then be cached for cost savings.
+
+    Args:
+        persona: The editor persona definition
+        guidelines: Editorial guidelines to follow
+        glossary: Optional terminology glossary
+        knowledge_base: Optional Q&A knowledge from author
+        chapter_list: Optional list of existing chapters
+        project_state: Optional holistic project state (open issues/PRs, chapter status)
 
     Usage with caching:
         system = build_editorial_system_prompt(persona, guidelines, ...)
@@ -1071,6 +1080,10 @@ def build_editorial_system_prompt(
 {', '.join(chapter_list)}"""
         )
 
+    # Project state for holistic awareness
+    if project_state:
+        sections.append(project_state)
+
     sections.append(
         """# Important Reminders
 - Follow EDITORIAL_GUIDELINES.md exactly
@@ -1078,7 +1091,8 @@ def build_editorial_system_prompt(
 - Preserve the author's voice — enhance, don't replace
 - Be specific: reference exact phrases, not vague generalities
 - Explain WHY when you suggest changes
-- If unsure about author intent, ASK rather than assume"""
+- If unsure about author intent, ASK rather than assume
+- Consider the full project context when responding (other open threads, chapter status)"""
     )
 
     return "\n\n".join(sections)

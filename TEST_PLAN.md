@@ -172,62 +172,6 @@ A real-world test journey: Starting a book about dog training for first-time own
 
 ---
 
-## Scoring Summary
-
-| Phase | Tests | Passed | Failed | Notes |
-|-------|-------|--------|--------|-------|
-| 1. Day 1: Getting Started | 7 | | | |
-| 2. First Week: Capturing Ideas | 6 | | | |
-| 3. Building Chapters | 6 | | | |
-| 4. Working With Your Editor | 5 | | | |
-| 5. Switching Personas | 5 | | | |
-| 6. Ready to Revise | 5 | | | |
-| 7. Polish Phase | 5 | | | |
-| 8. Whole Book Review | 5 | | | |
-| 9. Ask the Editor | 4 | | | |
-| 10. Text Statistics | 5 | | | |
-| 11. Real Scenarios | 6 | | | |
-| 12. Long-Term Learning | 4 | | | |
-| 13. Edge Cases | 5 | | | |
-| **TOTAL** | **68** | | | |
-
----
-
-## Sample Test Content
-
-### First Voice Memo (Day 1)
-```
-okay so this is me just talking through it dont clean it up yet this is
-for you as the editor to get the shape of it in your head i think the
-book should be about 300 pages maybe a little more maybe less but roughly
-that and split into 10 chapters that feels right not too many not too few
-enough room to breathe and go deep and chapter 1 is really about orientation
-its for the new dog owner who is overwhelmed and excited and tired already
-and doesnt know where to start...
-```
-
-### Messy Stream-of-Consciousness (Phase 4)
-```
-so the thing about bonding with your dog is like its not just treats
-right its about being present and like when youre on your phone and
-the dogs just sitting there waiting thats not bonding thats coexisting
-and I want people to understand that the first 3 months matter so much
-more than they think and also like the whole dominance thing is mostly
-BS but I dont want to be too aggressive about saying that...
-```
-
-### Test Personas
-- `margot` - Default, sharp, no-nonsense
-- `sage` - Nurturing, encouraging
-- `the-axe` - Brutal, cuts ruthlessly
-- `blueprint` - Structure-focused
-- `sterling` - Commercial/market-aware
-- `cheerleader` - Pure encouragement
-- `ivory-tower` - Literary/academic
-- `bestseller` - Maximum readability
-
----
-
 ## Phase 14: Context Management & State Tracking
 
 | Step | Action | Expected Result |
@@ -240,6 +184,19 @@ BS but I dont want to be too aggressive about saying that...
 | 14.6 | Create PR from voice memo issue | PR body includes text statistics, editorial reasoning, and context references |
 | 14.7 | Check PR body for "Decisions Made" section | Shows established facts and decisions from conversation |
 | 14.8 | Check PR body for "Outstanding Items" section | Shows unanswered questions if any |
+
+---
+
+## Phase 15: Holistic Project State (Cross-Thread Awareness)
+
+| Step | Action | Expected Result |
+|------|--------|-----------------|
+| 15.1 | Have 2 issues open: one for chapter 2, one for chapter 4 | AI mentions "you also have chapter 4 in progress" when discussing chapter 2 |
+| 15.2 | Check AI response for project state section | Shows "Open editorial threads" with issue numbers |
+| 15.3 | Open issue awaiting author response, have PR open too | AI notes "PR #X is also open for chapter Y" |
+| 15.4 | Create voice memo that mentions content from other open thread | AI acknowledges the connection between threads |
+| 15.5 | Check chapter state tracking | AI knows which chapters are drafted vs approved |
+| 15.6 | Submit content for chapter not yet started | AI notes this as a "void" chapter being populated |
 
 ---
 
@@ -261,7 +218,8 @@ BS but I dont want to be too aggressive about saying that...
 | 12. Long-Term Learning | 4 | | | |
 | 13. Edge Cases | 5 | | | |
 | 14. Context Management & State | 8 | | | |
-| **TOTAL** | **76** | | | |
+| 15. Holistic Project State | 6 | | | |
+| **TOTAL** | **82** | | | |
 
 ---
 

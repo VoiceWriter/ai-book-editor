@@ -32,8 +32,8 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from scripts.utils.context_management import (  # noqa: E402
-    count_tokens,
+from scripts.utils.context_management import (
+    count_tokens,  # noqa: E402
     prepare_conversation_context,
 )
 from scripts.utils.conversation_state import (  # noqa: E402
@@ -77,6 +77,7 @@ from scripts.utils.phases import (
 )
 from scripts.utils.pr_body import build_rich_pr_body  # noqa: E402
 from scripts.utils.pr_body import format_rich_pr_body
+from scripts.utils.project_state import get_project_context_for_prompt  # noqa: E402
 from scripts.utils.reasoning_log import get_actions_logger  # noqa: E402
 
 
@@ -119,7 +120,8 @@ def prepare_conversation_for_llm(
         # Fallback to simple formatting if context management fails
         print(f"Warning: Context management failed, using fallback: {e}")
         conv_text = "\n\n".join(
-            f"**{c.get('user', 'unknown')}:** {c.get('body', '')[:800]}" for c in comments
+            f"**{c.get('user', 'unknown')}:** {c.get('body', '')[:800]}"
+            for c in comments
         )
         return conv_text, count_tokens(conv_text)
 
@@ -143,7 +145,9 @@ def extract_cleaned_transcript(comments: list) -> str:
     for comment in reversed(comments):
         body = comment.get("body", "")
         if "### Cleaned Transcript" in body:
-            match = re.search(r"### Cleaned Transcript\s*\n(.*?)(?=###|\n---|\Z)", body, re.DOTALL)
+            match = re.search(
+                r"### Cleaned Transcript\s*\n(.*?)(?=###|\n---|\Z)", body, re.DOTALL
+            )
             if match:
                 return match.group(1).strip()
     return None
@@ -283,7 +287,9 @@ def build_discovery_transition_prompt(
         lines.append("")
 
     if discovery_context.get("emotional_state"):
-        lines.append(f"**Detected emotional state:** {discovery_context['emotional_state']}")
+        lines.append(
+            f"**Detected emotional state:** {discovery_context['emotional_state']}"
+        )
         lines.append("")
 
     lines.append("## Key Learnings")
@@ -298,7 +304,9 @@ def build_discovery_transition_prompt(
 
     lines.append("## Your Task")
     lines.append("")
-    lines.append("Now that you understand the author's context, goals, and emotional state,")
+    lines.append(
+        "Now that you understand the author's context, goals, and emotional state,"
+    )
     lines.append("provide feedback that is tailored to what they told you.")
     lines.append("")
     lines.append("Remember:")
@@ -317,13 +325,16 @@ def build_intent_prompt(
     issue_number: int,
     editorial_context: dict = None,
     conversation_state: ConversationState = None,
+    project_state: str = None,
 ) -> str:
     """Build prompt for inferring user intent from conversation."""
     # Build conversation history with context management
     system_prompt = "You are an AI book editor assistant."
     established_facts = []
     if conversation_state:
-        established_facts = [f"{fact.key}: {fact.value}" for fact in conversation_state.established]
+        established_facts = [
+            f"{fact.key}: {fact.value}" for fact in conversation_state.established
+        ]
 
     conversation_text, tokens_used = prepare_conversation_for_llm(
         issue_body=issue.body or "",
@@ -337,7 +348,9 @@ def build_intent_prompt(
         if len(issue.body or "") > 2000
         else f"**Original transcript/issue body:**\n{issue.body}\n\n"
     )
-    history += f"**Conversation history ({tokens_used:,} tokens):**\n{conversation_text}"
+    history += (
+        f"**Conversation history ({tokens_used:,} tokens):**\n{conversation_text}"
+    )
 
     # Get current issue state
     labels = [lbl.name for lbl in issue.labels]
@@ -358,8 +371,15 @@ def build_intent_prompt(
 {editorial_context['guidelines']}
 """
 
+    # Build project state section for holistic awareness
+    project_state_section = ""
+    if project_state:
+        project_state_section = f"""
+{project_state}
+"""
+
     return f"""You are an AI book editor assistant. Analyze this conversation and determine what action(s) the author wants you to take.
-{persona_section}{guidelines_section}
+{persona_section}{guidelines_section}{project_state_section}
 
 ## Current Issue State
 - Issue #{issue_number}: "{issue.title}"
@@ -418,6 +438,7 @@ def infer_intent(
     # Load editorial context for consistent persona
     # Pass labels and comment for persona resolution
     editorial_context = None
+    project_state = None
     if repo:
         try:
             labels = [lbl.name for lbl in issue.labels]
@@ -433,6 +454,14 @@ def infer_intent(
         except Exception as e:
             print(f"Warning: Could not load editorial context: {e}")
 
+        # Load project state for holistic awareness
+        try:
+            project_state = get_project_context_for_prompt(repo, max_tokens=400)
+            if project_state:
+                print("Project state loaded for holistic awareness")
+        except Exception as e:
+            print(f"Warning: Could not load project state: {e}")
+
     prompt = build_intent_prompt(
         issue=issue,
         comments=comments,
@@ -440,6 +469,7 @@ def infer_intent(
         issue_number=issue_number,
         editorial_context=editorial_context,
         conversation_state=conversation_state,
+        project_state=project_state,
     )
 
     intent, llm_response = call_editorial_structured(
@@ -464,7 +494,9 @@ def infer_intent(
         actions_proposed = []
         for action in intent.issue_actions:
             if action.action == "close":
-                actions_proposed.append(f"close (reason: {action.close_reason or 'completed'})")
+                actions_proposed.append(
+                    f"close (reason: {action.close_reason or 'completed'})"
+                )
             elif action.action == "create_pr":
                 actions_proposed.append("create PR")
             elif action.action == "add_labels":
@@ -484,7 +516,8 @@ def infer_intent(
             inferred_intent=intent.response_text[:200],
             confidence=intent.confidence,
             actions_proposed=actions_proposed,
-            confirmation_required=intent.needs_confirmation or intent.confidence != "high",
+            confirmation_required=intent.needs_confirmation
+            or intent.confidence != "high",
             tokens_used=llm_response.usage.total_tokens if llm_response.usage else 0,
             cost_usd=llm_response.usage.cost_usd if llm_response.usage else 0.0,
         )
@@ -553,7 +586,9 @@ def execute_issue_actions(
                     body=action.body or "",
                     labels=action.labels if action.labels else None,
                 )
-                actions_taken.append(f"Created issue #{new_issue.number}: {action.title}")
+                actions_taken.append(
+                    f"Created issue #{new_issue.number}: {action.title}"
+                )
 
     return actions_taken
 
@@ -660,7 +695,9 @@ def main():
         try:
             add_labels(issue, [new_label])
             response = f"Switching to **{persona_id}** persona for this issue.\n\n"
-            response += "All future responses will use this persona until you switch again.\n\n"
+            response += (
+                "All future responses will use this persona until you switch again.\n\n"
+            )
             response += f"*Label `{new_label}` added to issue.*"
 
             # If there's remaining text, note we'll process it
@@ -688,7 +725,9 @@ def main():
             repo=repo,
             conversation_state=conversation_state,
         )
-        print(f"Intent inferred: confidence={intent.confidence}, understood={intent.understood}")
+        print(
+            f"Intent inferred: confidence={intent.confidence}, understood={intent.understood}"
+        )
         print(f"LLM usage: {llm_response.usage.format_compact()}")
     except Exception as e:
         print(f"Error inferring intent: {e}")
@@ -736,15 +775,17 @@ def main():
 
         if proposed_actions:
             actions_list = "\n".join(f"- {a}" for a in proposed_actions)
-            question = intent.clarifying_question or "Should I proceed with these actions?"
+            question = (
+                intent.clarifying_question or "Should I proceed with these actions?"
+            )
 
             confidence_note = ""
             if intent.confidence == "low":
-                confidence_note = (
-                    "\n\n*I'm not entirely sure I understood correctly. Please confirm or clarify.*"
-                )
+                confidence_note = "\n\n*I'm not entirely sure I understood correctly. Please confirm or clarify.*"
             elif intent.confidence == "medium":
-                confidence_note = "\n\n*Just want to make sure I got this right before proceeding.*"
+                confidence_note = (
+                    "\n\n*Just want to make sure I got this right before proceeding.*"
+                )
 
             response = f"""{intent.response_text}
 
@@ -765,7 +806,9 @@ Reply with:
             return
 
     # Execute non-PR actions first
-    actions_taken = execute_issue_actions(issue, repo, intent, issue_number, conversation_state)
+    actions_taken = execute_issue_actions(
+        issue, repo, intent, issue_number, conversation_state
+    )
     if actions_taken:
         print(f"Actions executed: {', '.join(actions_taken)}")
 
@@ -802,7 +845,9 @@ Reply with:
         cleaned_transcript = extract_cleaned_transcript(comments)
         if cleaned_transcript and len(cleaned_transcript) > 200:
             conversation_state.mark_prerequisite_met("content written")
-            conversation_state.mark_prerequisite_met("outline")  # Implied by having content
+            conversation_state.mark_prerequisite_met(
+                "outline"
+            )  # Implied by having content
             print("Auto-marking prerequisites met: substantial content found")
 
         # Check for established facts (indicates discovery is complete)
@@ -827,7 +872,9 @@ Reply with:
 
             # Update state in issue body
             try:
-                new_body = update_issue_body_with_state(issue.body or "", conversation_state)
+                new_body = update_issue_body_with_state(
+                    issue.body or "", conversation_state
+                )
                 issue.edit(body=new_body)
                 print("Updated issue body with conversation state")
             except Exception as e:
@@ -872,12 +919,16 @@ Reply with:
         from scripts.utils.github_client import read_file_content
 
         existing_chapter = (
-            read_file_content(repo, target_path) if target_filename != "uncategorized.md" else None
+            read_file_content(repo, target_path)
+            if target_filename != "uncategorized.md"
+            else None
         )
 
         # Build conversation history with context management
         # Use established facts to help summarization preserve important context
-        established_facts = [f"{fact.key}: {fact.value}" for fact in conversation_state.established]
+        established_facts = [
+            f"{fact.key}: {fact.value}" for fact in conversation_state.established
+        ]
         conversation_history, conv_tokens = prepare_conversation_for_llm(
             issue_body=issue.body or "",
             comments=comments,
@@ -893,11 +944,15 @@ Reply with:
         history += f"**Conversation history ({conv_tokens:,} tokens):**\n{conversation_history}"
 
         # Call LLM to prepare editorial-quality content
-        print(f"Calling LLM to prepare editorial content (conversation: {conv_tokens:,} tokens)...")
+        print(
+            f"Calling LLM to prepare editorial content (conversation: {conv_tokens:,} tokens)..."
+        )
 
         # Build prompt sections
         persona_section = (
-            "**Editor Persona:** " + context["persona"] if context.get("persona") else ""
+            "**Editor Persona:** " + context["persona"]
+            if context.get("persona")
+            else ""
         )
         guidelines_section = (
             "**Editorial Guidelines:** " + context["guidelines"]
@@ -905,7 +960,9 @@ Reply with:
             else ""
         )
         if existing_chapter:
-            existing_section = "**Existing chapter content:**\n" + existing_chapter[:2000] + "..."
+            existing_section = (
+                "**Existing chapter content:**\n" + existing_chapter[:2000] + "..."
+            )
         else:
             existing_section = "**This will be a new file.**"
 
@@ -951,7 +1008,9 @@ Return your response in this format:
                 response_text,
                 re.DOTALL,
             )
-            prepared_content = content_match.group(1).strip() if content_match else response_text
+            prepared_content = (
+                content_match.group(1).strip() if content_match else response_text
+            )
         else:
             prepared_content = response_text
 
@@ -997,7 +1056,9 @@ Return your response in this format:
         if not content_summary:
             # Fallback: first 200 chars of prepared content
             content_summary = (
-                prepared_content[:200] + "..." if len(prepared_content) > 200 else prepared_content
+                prepared_content[:200] + "..."
+                if len(prepared_content) > 200
+                else prepared_content
             )
 
         # Build rich PR body with all analysis
@@ -1035,7 +1096,9 @@ Return your response in this format:
 <sub>{llm_response.usage.format_summary()}</sub>"""
 
         # Write PR body to file for reliable multiline handling
-        Path("output/pr-body.md").write_text(pr_body + f"\n\n---\n\nCloses #{issue_number}")
+        Path("output/pr-body.md").write_text(
+            pr_body + f"\n\n---\n\nCloses #{issue_number}"
+        )
         set_output("pr_body", pr_body)
 
         # Response comment with summary
@@ -1102,7 +1165,9 @@ Return your response in this format:
     try:
         facts_written = persist_to_knowledge_base(conversation_state)
         if facts_written > 0:
-            print(f"Cross-issue memory: {facts_written} facts now available to other issues")
+            print(
+                f"Cross-issue memory: {facts_written} facts now available to other issues"
+            )
     except Exception as e:
         print(f"Warning: Could not persist to knowledge base: {e}")
 

@@ -24,11 +24,19 @@ from typing import Optional
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from scripts.utils.github_client import get_github_client, get_issue, get_repo  # noqa: E402
+from scripts.utils.github_client import (
+    get_github_client,  # noqa: E402
+    get_issue,
+    get_repo,
+)
 from scripts.utils.knowledge_base import load_editorial_context  # noqa: E402
-from scripts.utils.llm_client import build_editorial_prompt, call_editorial  # noqa: E402
+from scripts.utils.llm_client import (
+    build_editorial_prompt,  # noqa: E402
+    call_editorial,
+)
 from scripts.utils.persona import load_persona  # noqa: E402
 from scripts.utils.phases import BookPhase  # noqa: E402
+from scripts.utils.project_state import get_project_context_for_prompt  # noqa: E402
 
 
 def set_output(name: str, value: str):
@@ -89,7 +97,9 @@ I'm {persona_name}, and I'll be your editor. I don't have context about your boo
 """
 
 
-def build_phase_aware_task(book_phase: Optional[BookPhase], book_context: Optional[str]) -> str:
+def build_phase_aware_task(
+    book_phase: Optional[BookPhase], book_context: Optional[str]
+) -> str:
     """
     Build the analysis task based on current book phase.
 
@@ -215,11 +225,15 @@ Format your response with clear ### headers for each section."""
 
         # Adjust approach based on emotional state
         if state in ["vulnerable", "frustrated", "blocked"]:
-            lines.append("*Approach with extra encouragement. Lead with what's working.*")
+            lines.append(
+                "*Approach with extra encouragement. Lead with what's working.*"
+            )
         elif state == "confident":
             lines.append("*Author is ready for rigorous feedback. Don't hold back.*")
         elif state == "defensive":
-            lines.append("*Author may be protective of this work. Be respectful but honest.*")
+            lines.append(
+                "*Author may be protective of this work. Be respectful but honest.*"
+            )
         lines.append("")
 
     if discovery_context.get("knowledge_items"):
@@ -234,8 +248,12 @@ Format your response with clear ### headers for each section."""
     lines.append("")
     lines.append(full_task)
     lines.append("")
-    lines.append("**Remember:** Tailor your feedback to what the author told you during discovery.")
-    lines.append("Honor their goals, respect their emotional state, reference their intent.")
+    lines.append(
+        "**Remember:** Tailor your feedback to what the author told you during discovery."
+    )
+    lines.append(
+        "Honor their goals, respect their emotional state, reference their intent."
+    )
 
     return "\n".join(lines)
 
@@ -256,7 +274,9 @@ def main():
     transcript = issue.body or ""
     if not transcript.strip():
         # Output error comment
-        error_comment = "No transcript found in issue body. Please add the voice memo transcript."
+        error_comment = (
+            "No transcript found in issue body. Please add the voice memo transcript."
+        )
         Path("output").mkdir(exist_ok=True)
         Path("output/analysis-comment.md").write_text(error_comment)
         set_output("success", "false")
@@ -299,6 +319,16 @@ def main():
         book_context=book_context,
     )
 
+    # Get project state for holistic awareness
+    # This tells the editor what else is happening in the project
+    project_state = None
+    try:
+        project_state = get_project_context_for_prompt(repo, max_tokens=400)
+        if project_state:
+            print("Project state loaded for holistic awareness")
+    except Exception as e:
+        print(f"Warning: Could not load project state: {e}")
+
     prompt = build_editorial_prompt(
         persona=context["persona"],
         guidelines=context["guidelines"],
@@ -308,6 +338,10 @@ def main():
         task=task,
         content=transcript,
     )
+
+    # Inject project state into prompt
+    if project_state:
+        prompt = project_state + "\n\n" + prompt
 
     # Call LLM with reasoning enabled
     print("Calling LLM for editorial analysis (with reasoning)...")
@@ -342,7 +376,9 @@ def main():
     # Note if discovery was used
     discovery_note = ""
     if discovery_context:
-        discovery_note = "\n*This feedback is tailored based on our discovery conversation.*\n"
+        discovery_note = (
+            "\n*This feedback is tailored based on our discovery conversation.*\n"
+        )
 
     # Phase indicator
     phase_note = ""
